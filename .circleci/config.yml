@@ -3,6 +3,7 @@ version: 2.1
 orbs:
   node: circleci/node@5.1.0
   ruby: circleci/ruby@2.1.1
+  macos: circleci/macos@2
 
 jobs:
   react-native-test:
@@ -42,7 +43,7 @@ jobs:
 
   macos-build-and-deploy:
     macos:
-      xcode: 14.2.0
+      xcode: 15.4.0
     environment:
       FL_OUTPUT_DIR: output
       FASTLANE_LANE: beta
@@ -73,29 +74,15 @@ jobs:
             mkdir -p ios
             touch ios/Podfile.lock
       
+      - macos/switch-ruby:
+          version: "3.1.0"
+      
       - run:
-          name: Set Ruby Version
+          name: Ruby and Bundler Info
           command: |
-            # Try to use system Ruby first (simpler approach)
-            echo "Using system Ruby with fallback to rbenv"
-            if which ruby && [[ $(ruby -v) == *"ruby 2.7"* ]]; then
-              echo "System Ruby 2.7 is available, using it"
-              ruby -v
-            else
-              echo "Installing Ruby 2.7 with rbenv"
-              brew --version
-              export PATH="$HOME/.rbenv/bin:$PATH"
-              if ! command -v rbenv &> /dev/null; then
-                echo "Installing rbenv..."
-                brew install rbenv
-              fi
-              eval "$(rbenv init -)"
-              rbenv versions
-              rbenv install 2.7.6 -s
-              rbenv global 2.7.6
-              ruby --version
-            fi
-            gem install bundler
+            ruby -v
+            gem install bundler -v 2.3.20
+            bundler -v
             
       - restore_cache:
           keys:
@@ -135,7 +122,6 @@ jobs:
 
       - run:
           command: |
-            gem install bundler -v 2.3.20
             bundle config set --local path 'vendor/bundle'
             bundle install --jobs=4 --retry=3
           working_directory: .
@@ -195,6 +181,15 @@ jobs:
       - checkout:
           path: ~/expo-react-native-paper
 
+      - run:
+          name: Create Required Files
+          command: |
+            echo "Creating initial required files..."
+            touch Gemfile.lock
+            mkdir -p android
+            echo "// Placeholder until expo prebuild creates the real files" > android/build.gradle
+            echo "// Placeholder until expo prebuild creates the real files" > android/app/build.gradle
+
       - attach_workspace:
           at: ~/expo-react-native-paper
 
@@ -227,15 +222,6 @@ jobs:
           command: sudo apt-get update && sudo apt-get install -y ninja-build
           
       - run:
-          name: Setup Android SDK
-          command: |
-            echo "Installing build tools and platforms"
-            yes | sdkmanager "build-tools;33.0.0" "platforms;android-33"
-            echo "Setting ANDROID_NDK_HOME"
-            echo 'export ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk-bundle' >> $BASH_ENV
-            source $BASH_ENV
-
-      - run:
           name: Initialize Gemfile.lock if missing
           command: |
             if [ ! -f Gemfile.lock ]; then
@@ -260,14 +246,17 @@ jobs:
             - vendor/bundle
           when: always
 
-      - restore_cache:
-          keys:
-            - gradle-v1-{{ checksum "android/build.gradle" }}-{{ checksum "android/app/build.gradle" }}
-            - gradle-v1-
-
+      - run:
+          name: Setup Android SDK
+          command: |
+            echo "Installing SDK Tools"
+            yes | sdkmanager --licenses || true
+            yes | sdkmanager "platform-tools" "build-tools;33.0.1" "platforms;android-33" "ndk;21.0.6113669" || true
+            
       - run:
           name: Generate Native Code from Expo
-          command: npx expo prebuild --clean
+          command: npx expo prebuild --clean --no-install
+          no_output_timeout: 20m
 
       - run:
           name: Configure Gradle for CI
@@ -276,6 +265,11 @@ jobs:
             echo "org.gradle.caching=true" >> android/gradle.properties
             echo "android.enableJetifier=true" >> android/gradle.properties
             echo "android.enableR8=false" >> android/gradle.properties
+
+      - restore_cache:
+          keys:
+            - gradle-v1-{{ checksum "android/build.gradle" }}-{{ checksum "android/app/build.gradle" }}
+            - gradle-v1-
 
       - save_cache:
           key: gradle-v1-{{ checksum "android/build.gradle" }}-{{ checksum "android/app/build.gradle" }}
