@@ -74,8 +74,15 @@ jobs:
             mkdir -p ios
             touch ios/Podfile.lock
       
-      - macos/switch-ruby:
-          version: "3.1.0"
+      - run:
+          name: Setup Ruby 3.0.0
+          command: |
+            # For Xcode 15, we'll use the system Ruby or install via homebrew
+            ruby --version || true
+            brew install ruby@3.0 || true
+            echo 'export PATH="/usr/local/opt/ruby@3.0/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            ruby -v
       
       - run:
           name: Ruby and Bundler Info
@@ -186,7 +193,7 @@ jobs:
           command: |
             echo "Creating initial required files..."
             touch Gemfile.lock
-            mkdir -p android
+            mkdir -p android/app
             echo "// Placeholder until expo prebuild creates the real files" > android/build.gradle
             echo "// Placeholder until expo prebuild creates the real files" > android/app/build.gradle
 
