@@ -50,9 +50,6 @@ jobs:
       - name: Setup CI
         run: bundle exec fastlane setup_ci
         
-      - name: Take iOS Screenshots
-        run: bundle exec fastlane ios screenshots
-        
       - name: Build iOS
         run: bundle exec fastlane ios build
         env:
@@ -61,12 +58,6 @@ jobs:
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         
-      - name: Upload Screenshots
-        uses: actions/upload-artifact@v3
-        with:
-          name: ios-screenshots
-          path: fastlane/screenshots
-
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
@@ -77,11 +68,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # These environment variables should be set in GitHub Secrets:
-      # ANDROID_KEYSTORE_FILE: Path to your keystore file
       # ANDROID_KEYSTORE_PASSWORD: Your keystore password
       # ANDROID_KEY_ALIAS: Your key alias
       # ANDROID_KEY_PASSWORD: Your key password
-      # GOOGLE_PLAY_JSON_KEY: Path to your Google Play JSON key file
+      # ANDROID_KEYSTORE_BASE64: Your base64-encoded keystore file
     steps:
       - uses: actions/checkout@v3
       
@@ -117,9 +107,10 @@ jobs:
         
       # Decode and save the Android keystore file
       - name: Decode Android keystore
-        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         run: |
-          echo ${{ secrets.ANDROID_KEYSTORE_BASE64 }} | base64 --decode > android/app/my-release-key.keystore
+          mkdir -p android/app
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/my-release-key.keystore
           echo "ANDROID_KEYSTORE_FILE=android/app/my-release-key.keystore" >> $GITHUB_ENV
         
       - name: Generate Native Code from Expo
@@ -128,7 +119,7 @@ jobs:
       - name: Build Android
         run: bundle exec fastlane android build
         env:
-          ANDROID_KEYSTORE_FILE: ${{ env.ANDROID_KEYSTORE_FILE }}
+          ANDROID_KEYSTORE_FILE: ${{ env.ANDROID_KEYSTORE_FILE || 'android/app/debug.keystore' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}

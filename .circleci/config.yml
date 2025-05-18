@@ -28,6 +28,12 @@ jobs:
       - node/install:
           node-version: '18.18.0'
       
+      # Install pnpm
+      - run:
+          name: Install pnpm
+          command: |
+            npm install -g pnpm@9.12.2
+      
       # Install npm dependencies
       - restore_cache:
           keys:
