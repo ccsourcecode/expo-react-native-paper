@@ -1,13 +1,20 @@
 #!/bin/bash
 set -e
 
+# Define the project root directory
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ANDROID_DIR="$PROJECT_ROOT/android"
+
+echo "Project root: $PROJECT_ROOT"
+echo "Android directory: $ANDROID_DIR"
+
 echo "Setting up Android signing keys..."
 # This script assumes that the ANDROID_SIGNING_KEY and ANDROID_PLAY_STORE_CREDENTIALS are set in environment variables
 
 # Run setup-android-keys.sh if it exists
-if [ -f "./fastlane/setup-android-keys.sh" ]; then
-  chmod +x ./fastlane/setup-android-keys.sh
-  ./fastlane/setup-android-keys.sh
+if [ -f "$PROJECT_ROOT/fastlane/setup-android-keys.sh" ]; then
+  chmod +x "$PROJECT_ROOT/fastlane/setup-android-keys.sh"
+  "$PROJECT_ROOT/fastlane/setup-android-keys.sh"
 fi
 
 echo "Configuring Gradle for optimal CI performance"
@@ -15,30 +22,30 @@ echo "Java version:"
 java -version
 
 echo "Ensuring gradlew exists and is executable..."
-if [ ! -f "./android/gradlew" ]; then
+if [ ! -f "$ANDROID_DIR/gradlew" ]; then
   echo "gradlew not found! Creating gradle wrapper..."
-  cd android
+  cd "$ANDROID_DIR"
   # Create gradle wrapper if it doesn't exist
   gradle wrapper
-  cd ..
+  cd - > /dev/null
 fi
 
 # Make sure gradlew is executable
-chmod +x ./android/gradlew
+chmod +x "$ANDROID_DIR/gradlew"
 
 # Fix any deprecated Gradle properties
 echo "Fixing any deprecated Gradle properties..."
-chmod +x fastlane/fix-gradle-properties.sh
-./fastlane/fix-gradle-properties.sh
+chmod +x "$PROJECT_ROOT/fastlane/fix-gradle-properties.sh"
+"$PROJECT_ROOT/fastlane/fix-gradle-properties.sh"
 
 echo "Gradle version:"
-cd android
+cd "$ANDROID_DIR"
 ./gradlew --version
 
 echo "Building Android app..."
 # Add memory optimizations before building
 echo "Configuring additional memory optimizations..."
-cd android
+cd "$ANDROID_DIR"
 cat >> gradle.properties << 'EOL'
 # Memory optimizations
 org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError

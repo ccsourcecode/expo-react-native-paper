@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Define the project root directory
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+IOS_DIR="$PROJECT_ROOT/ios"
+
 echo "Setting up iOS deployment environment..."
 
 # Set OpenSSL environment variables
@@ -15,11 +19,49 @@ echo "Bundler version: $(bundler -v)"
 
 # Update certificate store for OpenSSL
 echo "Updating OpenSSL certificate links..."
+echo "Doing $(brew --prefix openssl@3)/etc/openssl@3/certs"
 "$(brew --prefix openssl@3)/bin/c_rehash"
 
+# Run our iOS signing setup script
+echo "Setting up iOS signing..."
+chmod +x "$PROJECT_ROOT/fastlane/setup-ios-signing.sh"
+"$PROJECT_ROOT/fastlane/setup-ios-signing.sh"
+
+# Create exportOptions.plist file
+echo "Creating exportOptions.plist..."
+TEAM_ID=${TEAM_ID:-${FASTLANE_TEAM_ID:-""}}
+cat > "$IOS_DIR/exportOptions.plist" << EOL
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store</string>
+    <key>teamID</key>
+    <string>$TEAM_ID</string>
+    <key>uploadBitcode</key>
+    <false/>
+    <key>uploadSymbols</key>
+    <true/>
+    <key>compileBitcode</key>
+    <false/>
+    <key>stripSwiftSymbols</key>
+    <true/>
+    <key>signingStyle</key>
+    <string>automatic</string>
+</dict>
+</plist>
+EOL
+
 echo "Building iOS app..."
-cd ios
-xcodebuild -workspace "$(find . -name '*.xcworkspace' | head -n 1)" -scheme "$(find . -name '*.xcodeproj' -exec basename {} .xcodeproj \; | head -n 1)" -configuration Release -archivePath build/App.xcarchive archive
+cd "$IOS_DIR"
+# Find the workspace and scheme names
+WORKSPACE=$(find . -name '*.xcworkspace' | head -n 1)
+SCHEME=$(find . -name '*.xcodeproj' -exec basename {} .xcodeproj \; | head -n 1)
+echo "Using workspace: $WORKSPACE"
+echo "Using scheme: $SCHEME"
+
+xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -archivePath build/App.xcarchive archive
 
 echo "Creating IPA file..."
 xcodebuild -exportArchive -archivePath build/App.xcarchive -exportOptionsPlist exportOptions.plist -exportPath build

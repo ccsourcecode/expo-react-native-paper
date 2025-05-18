@@ -1,7 +1,9 @@
 #!/bin/bash
 set -e
 
-GRADLE_PROPERTIES="android/gradle.properties"
+# Define the project root directory
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+GRADLE_PROPERTIES="$PROJECT_ROOT/android/gradle.properties"
 
 echo "Checking for deprecated Gradle properties..."
 

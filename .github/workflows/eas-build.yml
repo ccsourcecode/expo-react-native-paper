@@ -2,26 +2,100 @@ name: EAS Build
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+      profile:
+        description: 'Build profile'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - development
+          - production
   # push:
   #   branches:
   #     - main
 
 jobs:
   build:
-    name: Install and build
+    name: EAS Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-node@v4
         with:
-          node-version: 18.x
+          node-version: 20.x
           cache: npm
+          
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+          
       - name: Install dependencies
         run: npm ci
+        
+      - name: Update app.json for iOS
+        if: ${{ github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'all' }}
+        run: |
+          # Update iOS bundle identifier and team ID if needed
+          npx json -I -f app.json -e 'this.expo.ios = { 
+            ...this.expo.ios, 
+            bundleIdentifier: "com.yourcompany.exporeactnativepaper",
+            supportsTablet: true
+          }'
+          
+      - name: Update app.json for Android
+        if: ${{ github.event.inputs.platform == 'android' || github.event.inputs.platform == 'all' }}
+        run: |
+          # Update Android package name if needed
+          npx json -I -f app.json -e 'this.expo.android = { 
+            ...this.expo.android, 
+            package: "com.yourcompany.exporeactnativepaper"
+          }'
+      
+      - name: Set up EAS configuration
+        run: |
+          # Create or update eas.json to include build configurations
+          echo '{
+            "cli": {
+              "version": ">= 5.9.1"
+            },
+            "build": {
+              "development": {
+                "developmentClient": true,
+                "distribution": "internal"
+              },
+              "preview": {
+                "distribution": "internal"
+              },
+              "production": {
+                "autoIncrement": true
+              }
+            },
+            "submit": {
+              "production": {}
+            }
+          }' > eas.json
+      
       - name: Build on EAS
-        run: eas build --platform all --non-interactive --no-wait
+        run: eas build --platform ${{ github.event.inputs.platform || 'all' }} --profile ${{ github.event.inputs.profile || 'preview' }} --non-interactive
+        env:
+          EXPO_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          EXPO_ASC_API_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          EXPO_ASC_API_KEY_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          EXPO_ASC_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          EXPO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          EXPO_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          EXPO_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}

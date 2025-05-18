@@ -103,6 +103,8 @@ jobs:
           ./fastlane/setup-ios-signing.sh
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          FASTLANE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           
       - name: Generate Native Code from Expo
         run: npx expo prebuild --clean
@@ -117,6 +119,8 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          FASTLANE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
           IOS_PRIVATE_KEY: ${{ secrets.IOS_PRIVATE_KEY }}
         
