@@ -7,7 +7,7 @@ orbs:
 jobs:
   react-native-test:
     docker:
-      - image: cimg/node:18.8
+      - image: cimg/node:20.10
     environment:
       CI: true
 
@@ -76,6 +76,13 @@ jobs:
           paths:
             - node_modules
 
+      - run:
+          name: Initialize Gemfile.lock if missing
+          command: |
+            if [ ! -f Gemfile.lock ]; then
+              touch Gemfile.lock
+            fi
+
       - restore_cache:
           key: bundle-v1-{{ checksum "Gemfile.lock" }}-{{ arch }}
 
@@ -119,7 +126,7 @@ jobs:
   android-build-and-deploy:
     working_directory: ~/expo-react-native-paper
     docker:
-      - image: cimg/android:2022.08-node
+      - image: cimg/android:2023.09-node
     environment:
       # These environment variables should be set in CircleCI project settings:
       # ANDROID_KEYSTORE_PASSWORD: Your keystore password
@@ -151,6 +158,13 @@ jobs:
           key: node-v1-{{ checksum "package.json" }}-{{ arch }}
           paths:
             - node_modules
+
+      - run:
+          name: Initialize Gemfile.lock if missing
+          command: |
+            if [ ! -f Gemfile.lock ]; then
+              touch Gemfile.lock
+            fi
 
       - restore_cache:
           key: bundle-v1-{{ checksum "Gemfile.lock" }}-{{ arch }}
