@@ -85,6 +85,17 @@ jobs:
             ruby -v
             
       - run:
+          name: Install compatible OpenSSL
+          command: |
+            # Install OpenSSL 1.1 for compatibility with App Store Connect API
+            brew install openssl@1.1
+            echo 'export PATH="/usr/local/opt/openssl@1.1/bin:$PATH"' >> $BASH_ENV
+            echo 'export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"' >> $BASH_ENV
+            echo 'export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"' >> $BASH_ENV
+            echo 'export PKG_CONFIG_PATH="/usr/local/opt/openssl@1.1/lib/pkgconfig"' >> $BASH_ENV
+            source $BASH_ENV
+            
+      - run:
           name: Ruby and Bundler Info
           command: |
             ruby -v

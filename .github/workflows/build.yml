@@ -67,6 +67,15 @@ jobs:
           ruby-version: '3.0.0'
           bundler-cache: true
           
+      - name: Install compatible OpenSSL
+        run: |
+          # Install OpenSSL 1.1 for compatibility with App Store Connect API
+          brew install openssl@1.1
+          echo 'export PATH="/usr/local/opt/openssl@1.1/bin:$PATH"' >> $GITHUB_ENV
+          echo 'export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"' >> $GITHUB_ENV
+          echo 'export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"' >> $GITHUB_ENV
+          echo 'export PKG_CONFIG_PATH="/usr/local/opt/openssl@1.1/lib/pkgconfig"' >> $GITHUB_ENV
+          
       - name: Ruby and Bundler Info
         run: |
           ruby -v
@@ -135,6 +144,15 @@ jobs:
         with:
           ruby-version: '3.0.0'
           bundler-cache: true
+          
+      - name: Install compatible OpenSSL
+        run: |
+          # Install OpenSSL 1.1 for compatibility with App Store Connect API
+          brew install openssl@1.1
+          echo 'export PATH="/usr/local/opt/openssl@1.1/bin:$PATH"' >> $GITHUB_ENV
+          echo 'export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"' >> $GITHUB_ENV
+          echo 'export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"' >> $GITHUB_ENV
+          echo 'export PKG_CONFIG_PATH="/usr/local/opt/openssl@1.1/lib/pkgconfig"' >> $GITHUB_ENV
           
       - name: Ruby and Bundler Info
         run: |
