@@ -26,6 +26,11 @@ fi
 # Make sure gradlew is executable
 chmod +x ./android/gradlew
 
+# Fix any deprecated Gradle properties
+echo "Fixing any deprecated Gradle properties..."
+chmod +x fastlane/fix-gradle-properties.sh
+./fastlane/fix-gradle-properties.sh
+
 echo "Gradle version:"
 cd android
 ./gradlew --version
