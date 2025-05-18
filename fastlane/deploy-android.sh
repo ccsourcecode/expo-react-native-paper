@@ -1,17 +1,30 @@
 #!/bin/bash
 set -e
 
-# Extract Play Store credentials from environment variable
-if [ ! -z "$ANDROID_PLAY_STORE_CREDENTIALS" ]; then
-  echo "Extracting Play Store credentials from environment variable"
-  echo "$ANDROID_PLAY_STORE_CREDENTIALS" | base64 --decode > play-store-credentials.json
-fi
+# Make script executable
+chmod +x fastlane/setup-android-keys.sh
 
-# Extract Android signing key from environment variable
-if [ ! -z "$ANDROID_SIGNING_KEY" ]; then
-  echo "Extracting Android signing key from environment variable"
-  echo "$ANDROID_SIGNING_KEY" | base64 --decode > example-app.keystore
-fi
+# Set up Android signing keys and credentials
+./fastlane/setup-android-keys.sh
+
+# Configure Gradle properties for improved CI performance
+echo "Configuring Gradle for optimal CI performance"
+
+# Increase Java memory allocation for Gradle
+export GRADLE_OPTS="$GRADLE_OPTS -Dorg.gradle.jvmargs=-Xmx4g"
+
+# Add progress output to prevent timeouts
+export CI_PROGRESS=true
+
+# Set environment variables for Fastlane
+export ANDROID_KEYSTORE_FILE="./android-key.keystore"
+
+# Print environment info
+echo "Java version:"
+java -version
+echo "Gradle version:"
+./gradlew --version
 
 # Run fastlane beta lane
-bundle exec fastlane android beta 
+echo "Starting Android build with fastlane..."
+bundle exec fastlane android beta --verbose 

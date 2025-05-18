@@ -167,13 +167,15 @@ jobs:
     docker:
       - image: cimg/android:2023.09-node
     environment:
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
       # These environment variables should be set in CircleCI project settings:
       # ANDROID_KEYSTORE_PASSWORD: Your keystore password
       # ANDROID_KEY_ALIAS: Your key alias
       # ANDROID_KEY_PASSWORD: Your key password
       # ANDROID_PLAY_STORE_CREDENTIALS: Google Play Store credentials (base64 encoded)
       # ANDROID_SIGNING_KEY: Android keystore file (base64 encoded)
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=false"
+      TERM: dumb
+      
     steps:
       - checkout:
           path: ~/expo-react-native-paper
@@ -208,6 +210,15 @@ jobs:
       - run:
           name: Install Ninja
           command: sudo apt-get update && sudo apt-get install -y ninja-build
+          
+      - run:
+          name: Setup Android SDK
+          command: |
+            echo "Installing build tools and platforms"
+            yes | sdkmanager "build-tools;33.0.0" "platforms;android-33"
+            echo "Setting ANDROID_NDK_HOME"
+            echo 'export ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk-bundle' >> $BASH_ENV
+            source $BASH_ENV
 
       - run:
           name: Initialize Gemfile.lock if missing
@@ -243,6 +254,14 @@ jobs:
           name: Generate Native Code from Expo
           command: npx expo prebuild --clean
 
+      - run:
+          name: Configure Gradle for CI
+          command: |
+            echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> android/gradle.properties
+            echo "org.gradle.caching=true" >> android/gradle.properties
+            echo "android.enableJetifier=true" >> android/gradle.properties
+            echo "android.enableR8=false" >> android/gradle.properties
+
       - save_cache:
           key: gradle-v1-{{ checksum "android/build.gradle" }}-{{ checksum "android/app/build.gradle" }}
           paths:
@@ -252,6 +271,7 @@ jobs:
 
       - run:
           name: Deploy to Google Play
+          no_output_timeout: 30m
           command: sh fastlane/deploy-android.sh
           
       - store_artifacts:

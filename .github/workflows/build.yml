@@ -103,13 +103,8 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
-      # These environment variables should be set in GitHub Secrets:
-      # ANDROID_KEYSTORE_PASSWORD: Your keystore password
-      # ANDROID_KEY_ALIAS: Your key alias
-      # ANDROID_KEY_PASSWORD: Your key password
-      # ANDROID_PLAY_STORE_CREDENTIALS: Google Play Store credentials (base64 encoded)
-      # ANDROID_SIGNING_KEY: Android keystore file (base64 encoded)
-    
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=false"
+      
     steps:
       - uses: actions/checkout@v3
       
@@ -130,12 +125,6 @@ jobs:
           ruby-version: '3.0.0'
           bundler-cache: true
           
-      - name: Initialize Gemfile.lock if missing
-        run: |
-          if [ ! -f Gemfile.lock ]; then
-            touch Gemfile.lock
-          fi
-          
       - name: Install Ruby Dependencies
         run: bundle install --path vendor/bundle
         
@@ -148,12 +137,23 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build
+        
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
           
       - name: Generate Native Code from Expo
         run: npx expo prebuild --clean
         
+      - name: Configure Gradle for CI
+        run: |
+          echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> android/gradle.properties
+          echo "org.gradle.caching=true" >> android/gradle.properties
+          echo "android.enableJetifier=true" >> android/gradle.properties
+          echo "android.enableR8=false" >> android/gradle.properties
+        
       - name: Deploy to Google Play
         run: sh fastlane/deploy-android.sh
+        timeout-minutes: 30
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
