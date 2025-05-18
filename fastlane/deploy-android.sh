@@ -36,7 +36,24 @@ cd android
 ./gradlew --version
 
 echo "Building Android app..."
-# Add timeout to handle long builds
-timeout 40m ./gradlew app:bundleRelease app:assembleRelease --no-daemon --max-workers 2 -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs="-Xmx3g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+# Add memory optimizations before building
+echo "Configuring additional memory optimizations..."
+cd android
+cat >> gradle.properties << 'EOL'
+# Memory optimizations
+org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError
+org.gradle.daemon=false
+org.gradle.workers.max=1
+android.disableAutomaticComponentCreation=true
+kapt.incremental.apt=false
+# Skia optimizations
+skiko.native.dependencies.strip=false
+EOL
+
+# Split the build into separate tasks to avoid memory issues
+echo "Building app using separate tasks to avoid memory issues..."
+./gradlew clean
+./gradlew :app:bundleRelease --no-daemon --max-workers 1 -Dorg.gradle.configureondemand=true
+./gradlew :app:assembleRelease --no-daemon --max-workers 1 -Dorg.gradle.configureondemand=true
 
 echo "Android build completed successfully!" 

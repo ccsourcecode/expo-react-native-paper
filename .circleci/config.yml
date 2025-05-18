@@ -75,7 +75,7 @@ jobs:
             touch ios/Podfile.lock
       
       - run:
-          name: Setup Ruby 3.0.0
+          name: Setup Ruby 3.1.4
           command: |
             # Install OpenSSL 3 first
             brew install openssl@3
@@ -88,8 +88,8 @@ jobs:
             export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"
             
             # Install Ruby with OpenSSL 3
-            rbenv install 3.0.0 -s
-            rbenv global 3.0.0
+            rbenv install 3.1.4 -s
+            rbenv global 3.1.4
             rbenv rehash
             echo "Ruby version:"
             ruby -v
@@ -115,7 +115,7 @@ jobs:
           name: Ruby and Bundler Info
           command: |
             ruby -v
-            gem install bundler -v 2.3.20 --user-install
+            gem install bundler -v 2.4.22 --user-install
             export GEM_HOME="$HOME/.gem"
             export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
             bundler -v
@@ -171,6 +171,12 @@ jobs:
           when: always
 
       - run:
+          name: Setup iOS Signing Configuration
+          command: |
+            chmod +x fastlane/setup-ios-signing.sh
+            ./fastlane/setup-ios-signing.sh
+            
+      - run:
           name: Generate Native Code from Expo
           command: npx expo prebuild --clean
 
@@ -212,8 +218,10 @@ jobs:
       # ANDROID_KEY_PASSWORD: Your key password
       # ANDROID_PLAY_STORE_CREDENTIALS: Google Play Store credentials (base64 encoded)
       # ANDROID_SIGNING_KEY: Android keystore file (base64 encoded)
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=false"
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError'"
       TERM: dumb
+      # Configure resource class
+    resource_class: large
       
     steps:
       - checkout:
@@ -317,9 +325,17 @@ jobs:
       - run:
           name: Configure Gradle for CI
           command: |
-            echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> android/gradle.properties
+            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError" >> android/gradle.properties
             echo "org.gradle.caching=true" >> android/gradle.properties
             echo "android.enableJetifier=true" >> android/gradle.properties
+            echo "org.gradle.daemon=false" >> android/gradle.properties
+            echo "org.gradle.workers.max=1" >> android/gradle.properties
+            echo "org.gradle.parallel=false" >> android/gradle.properties
+            echo "android.disableAutomaticComponentCreation=true" >> android/gradle.properties
+            # Reduce the amount of memory used by the build
+            echo "kapt.incremental.apt=false" >> android/gradle.properties
+            # Apply specific Skia optimizations
+            echo "skiko.native.dependencies.strip=false" >> android/gradle.properties
 
       - restore_cache:
           keys:

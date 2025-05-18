@@ -64,7 +64,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.0.0'
+          ruby-version: '3.1.4'
           bundler-cache: true
           
       - name: Fix OpenSSL issues
@@ -85,7 +85,7 @@ jobs:
       - name: Ruby and Bundler Info
         run: |
           ruby -v
-          gem install bundler -v 2.3.20 --user-install
+          gem install bundler -v 2.4.22 --user-install
           export GEM_HOME="$HOME/.gem"
           export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
           bundler -v
@@ -97,6 +97,13 @@ jobs:
           bundle config set --local path 'vendor/bundle'
           bundle install --jobs=4 --retry=3
         
+      - name: Setup iOS Signing Configuration
+        run: |
+          chmod +x fastlane/setup-ios-signing.sh
+          ./fastlane/setup-ios-signing.sh
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          
       - name: Generate Native Code from Expo
         run: npx expo prebuild --clean
         
@@ -124,7 +131,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=false"
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError'"
       
     steps:
       - uses: actions/checkout@v3
@@ -148,7 +155,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.0.0'
+          ruby-version: '3.1.4'
           bundler-cache: true
           
       - name: Fix OpenSSL issues
@@ -169,7 +176,7 @@ jobs:
       - name: Ruby and Bundler Info
         run: |
           ruby -v
-          gem install bundler -v 2.3.20 --user-install
+          gem install bundler -v 2.4.22 --user-install
           export GEM_HOME="$HOME/.gem"
           export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
           bundler -v
@@ -215,9 +222,17 @@ jobs:
         
       - name: Configure Gradle for CI
         run: |
-          echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> android/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError" >> android/gradle.properties
           echo "org.gradle.caching=true" >> android/gradle.properties
           echo "android.enableJetifier=true" >> android/gradle.properties
+          echo "org.gradle.daemon=false" >> android/gradle.properties
+          echo "org.gradle.workers.max=1" >> android/gradle.properties
+          echo "org.gradle.parallel=false" >> android/gradle.properties
+          echo "android.disableAutomaticComponentCreation=true" >> android/gradle.properties
+          # Reduce the amount of memory used by the build
+          echo "kapt.incremental.apt=false" >> android/gradle.properties
+          # Apply specific Skia optimizations
+          echo "skiko.native.dependencies.strip=false" >> android/gradle.properties
         
       - name: Setup Android Signing Keys
         run: |
