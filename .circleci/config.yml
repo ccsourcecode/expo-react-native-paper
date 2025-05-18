@@ -28,24 +28,17 @@ jobs:
       - node/install:
           node-version: '18.18.0'
       
-      # Install dependencies using npm if pnpm fails
+      # Install dependencies using npm
       - restore_cache:
           keys:
-            - node-deps-v1-{{ checksum "package.json" }}
+            - npm-deps-v1-{{ checksum "package.json" }}
       - run:
           name: Install Dependencies
           command: |
-            # Attempt to install pnpm locally and use it
-            npm install -D pnpm@9.12.2
-            if [ -f "./node_modules/.bin/pnpm" ]; then
-              echo "Using local pnpm"
-              ./node_modules/.bin/pnpm install
-            else
-              echo "Falling back to npm"
-              npm install
-            fi
+            echo "Using npm for package installation"
+            npm install
       - save_cache:
-          key: node-deps-v1-{{ checksum "package.json" }}
+          key: npm-deps-v1-{{ checksum "package.json" }}
           paths:
             - node_modules
       
