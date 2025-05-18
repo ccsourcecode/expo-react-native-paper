@@ -94,11 +94,21 @@ platform :android do
 
   desc "Build and upload to Play Store internal track"
   lane :beta do
+    # Print progress to prevent timeouts
+    UI.message("Starting Android bundle build...")
+    
+    # Clean previous build files
+    gradle(
+      task: "clean",
+      project_dir: "android/"
+    )
+    
     # Build Android App Bundle
-    build_android_app(
+    gradle(
       task: "bundle",
       build_type: "Release",
       project_dir: "android/",
+      print_command: true,
       properties: {
         "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_FILE"],
         "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
@@ -107,11 +117,16 @@ platform :android do
       }
     )
     
+    UI.message("Uploading to Play Store internal track...")
+    
     # Upload to Play Store
     upload_to_play_store(
       track: 'internal',
-      json_key: ENV["GOOGLE_PLAY_JSON_KEY"],
-      skip_upload_screenshots: true
+      release_status: 'draft',
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      json_key: ENV["GOOGLE_PLAY_JSON_KEY"]
     )
   end
 

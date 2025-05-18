@@ -61,17 +61,27 @@ jobs:
           mkdir -p ios
           touch ios/Podfile.lock
       
+      - name: Setup Ruby Environment
+        run: |
+          echo "Checking Ruby environment..."
+          ruby -v
+          
+          # Update ruby-version file to ensure consistency
+          echo "2.7.6" > .ruby-version
+          
+          # Ensure Bundler is installed
+          if ! command -v bundler &> /dev/null; then
+            echo "Installing Bundler..."
+            gem install bundler
+          fi
+          
+          bundler -v
+      
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.0.0'
+          ruby-version: '2.7.6'
           bundler-cache: true
-          
-      - name: Initialize Gemfile.lock if missing
-        run: |
-          if [ ! -f Gemfile.lock ]; then
-            touch Gemfile.lock
-          fi
           
       - name: Install Ruby Dependencies
         run: bundle install --path vendor/bundle
@@ -119,10 +129,26 @@ jobs:
       - name: Create Gemfile.lock
         run: touch Gemfile.lock
       
+      - name: Setup Ruby Environment
+        run: |
+          echo "Checking Ruby environment..."
+          ruby -v
+          
+          # Update ruby-version file to ensure consistency
+          echo "2.7.6" > .ruby-version
+          
+          # Ensure Bundler is installed
+          if ! command -v bundler &> /dev/null; then
+            echo "Installing Bundler..."
+            gem install bundler
+          fi
+          
+          bundler -v
+      
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.0.0'
+          ruby-version: '2.7.6'
           bundler-cache: true
           
       - name: Install Ruby Dependencies
@@ -151,6 +177,14 @@ jobs:
           echo "android.enableJetifier=true" >> android/gradle.properties
           echo "android.enableR8=false" >> android/gradle.properties
         
+      - name: Setup Android Signing Keys
+        run: |
+          # Make the script executable
+          chmod +x fastlane/setup-android-keys.sh
+          
+          # Run the setup script
+          ./fastlane/setup-android-keys.sh
+        
       - name: Deploy to Google Play
         run: sh fastlane/deploy-android.sh
         timeout-minutes: 30
@@ -160,6 +194,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_PLAY_STORE_CREDENTIALS: ${{ secrets.ANDROID_PLAY_STORE_CREDENTIALS }}
           ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
+          ANDROID_KEYSTORE_FILE: ./android-key.keystore
         
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3

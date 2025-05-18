@@ -76,10 +76,25 @@ jobs:
       - run:
           name: Set Ruby Version
           command: |
-            # Use built-in Ruby with chruby
-            echo 'chruby ruby-2.7' >> ~/.bash_profile
-            source ~/.bash_profile
-            ruby --version
+            # Try to use system Ruby first (simpler approach)
+            echo "Using system Ruby with fallback to rbenv"
+            if which ruby && [[ $(ruby -v) == *"ruby 2.7"* ]]; then
+              echo "System Ruby 2.7 is available, using it"
+              ruby -v
+            else
+              echo "Installing Ruby 2.7 with rbenv"
+              brew --version
+              export PATH="$HOME/.rbenv/bin:$PATH"
+              if ! command -v rbenv &> /dev/null; then
+                echo "Installing rbenv..."
+                brew install rbenv
+              fi
+              eval "$(rbenv init -)"
+              rbenv versions
+              rbenv install 2.7.6 -s
+              rbenv global 2.7.6
+              ruby --version
+            fi
             gem install bundler
             
       - restore_cache:
