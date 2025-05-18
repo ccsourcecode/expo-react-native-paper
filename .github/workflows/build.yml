@@ -31,11 +31,13 @@ jobs:
       # Setup Ruby
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: '3.2.2'
           bundler-cache: true
           
       - name: Install Ruby dependencies
-        run: bundle install
+        run: |
+          bundle config set --local path 'vendor/bundle'
+          bundle install
         
       - name: Generate Native Code from Expo
         run: npx expo prebuild --clean
@@ -80,7 +82,7 @@ jobs:
         
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: '3.2.2'
           bundler-cache: true
           
       - uses: actions/setup-java@v3
@@ -89,7 +91,9 @@ jobs:
           java-version: '11'
           
       - name: Install Ruby dependencies
-        run: bundle install
+        run: |
+          bundle config set --local path 'vendor/bundle'
+          bundle install
         
       # Decode and save the Android keystore file
       - name: Decode Android keystore
