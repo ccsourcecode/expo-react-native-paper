@@ -75,20 +75,22 @@ jobs:
             touch ios/Podfile.lock
       
       - run:
-          name: Setup Ruby 2.7.6
+          name: Setup Ruby 3.0.0
           command: |
-            # For Xcode 15, we'll use the system Ruby or install via homebrew
-            ruby --version || true
-            brew install ruby@3.0 || true
-            echo 'export PATH="/usr/local/opt/ruby@3.0/bin:$PATH"' >> $BASH_ENV
-            source $BASH_ENV
+            # Install Ruby 3.0.0 with rbenv
+            rbenv install 3.0.0 -s
+            rbenv global 3.0.0
+            rbenv rehash
+            echo "Ruby version:"
             ruby -v
             
       - run:
           name: Ruby and Bundler Info
           command: |
             ruby -v
-            gem install bundler -v 2.3.20
+            gem install bundler -v 2.3.20 --user-install
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
             bundler -v
             
       - restore_cache:
@@ -129,6 +131,9 @@ jobs:
 
       - run:
           command: |
+            gem install bundler -v 2.3.20 --user-install
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
             bundle config set --local path 'vendor/bundle'
             bundle install --jobs=4 --retry=3
           working_directory: .
@@ -243,7 +248,8 @@ jobs:
       - run:
           command: |
             gem install bundler -v 2.3.20 --user-install
-            export PATH="$HOME/.gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
             bundle config set --local path 'vendor/bundle'
             bundle install --jobs=4 --retry=3
           working_directory: .
