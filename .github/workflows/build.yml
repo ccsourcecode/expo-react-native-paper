@@ -61,7 +61,7 @@ jobs:
           bundler-cache: true
           
       - name: Install Ruby Dependencies
-        run: bundle install
+        run: bundle install --path vendor/bundle
         
       - name: Generate Native Code from Expo
         run: npx expo prebuild --clean
@@ -115,7 +115,7 @@ jobs:
           bundler-cache: true
           
       - name: Install Ruby Dependencies
-        run: bundle install
+        run: bundle install --path vendor/bundle
         
       - uses: actions/setup-java@v3
         with:

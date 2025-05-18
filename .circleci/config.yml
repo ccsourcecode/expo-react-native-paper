@@ -80,7 +80,7 @@ jobs:
           key: bundle-v1-{{ checksum "Gemfile.lock" }}-{{ arch }}
 
       - run:
-          command: bundle install
+          command: bundle install --path vendor/bundle
           working_directory: .
 
       - save_cache:
@@ -156,7 +156,7 @@ jobs:
           key: bundle-v1-{{ checksum "Gemfile.lock" }}-{{ arch }}
 
       - run:
-          command: bundle install
+          command: bundle install --path vendor/bundle
           working_directory: .
 
       - save_cache:
