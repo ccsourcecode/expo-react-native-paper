@@ -76,16 +76,10 @@ jobs:
       - run:
           name: Set Ruby Version
           command: |
-            echo "Using system Ruby for now..."
-            brew install openssl@3
-            export RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl@3)"
-            export PATH="$HOME/.rbenv/bin:$PATH"
-            curl -fsSL https://github.com/rbenv/rbenv-installer/raw/HEAD/bin/rbenv-installer | bash
-            echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> $BASH_ENV
-            echo 'eval "$(~/.rbenv/bin/rbenv init - bash)"' >> $BASH_ENV
-            source $BASH_ENV
-            rbenv install 3.0.0 || true
-            rbenv global 3.0.0
+            # Use built-in Ruby with chruby
+            echo 'chruby ruby-2.7' >> ~/.bash_profile
+            source ~/.bash_profile
+            ruby --version
             gem install bundler
             
       - restore_cache:
@@ -125,7 +119,10 @@ jobs:
             - ruby-gems-v1-{{ arch }}
 
       - run:
-          command: bundle config set --local path 'vendor/bundle' && bundle install --jobs=4 --retry=3
+          command: |
+            gem install bundler -v 2.3.20
+            bundle config set --local path 'vendor/bundle'
+            bundle install --jobs=4 --retry=3
           working_directory: .
 
       - save_cache:
@@ -225,7 +222,10 @@ jobs:
             - ruby-gems-v1-{{ arch }}
 
       - run:
-          command: bundle config set --local path 'vendor/bundle' && bundle install --jobs=4 --retry=3
+          command: |
+            gem install bundler -v 2.3.20
+            bundle config set --local path 'vendor/bundle'
+            bundle install --jobs=4 --retry=3
           working_directory: .
 
       - save_cache:
