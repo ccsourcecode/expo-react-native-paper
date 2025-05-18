@@ -27,6 +27,14 @@ jobs:
       # Install Node.js dependencies
       - name: Install JS dependencies
         run: npm install
+      
+      # Install prerequisites for Ruby
+      - name: Install GPG and other prerequisites
+        run: |
+          brew update
+          brew install gnupg
+          brew install curl
+          gpg --version
         
       # Setup Ruby
       - uses: ruby/setup-ruby@v1
@@ -79,6 +87,13 @@ jobs:
       # Install Node.js dependencies
       - name: Install JS dependencies
         run: npm install
+      
+      # Install prerequisites for Ruby (on Ubuntu)
+      - name: Install GPG and other prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg2 curl
+          gpg --version
         
       - uses: ruby/setup-ruby@v1
         with:

@@ -43,6 +43,16 @@ jobs:
           paths:
             - node_modules
       
+      # Install required dependencies for RVM
+      - run:
+          name: Install GPG and other prerequisites
+          command: |
+            brew update
+            brew install gnupg
+            brew install curl
+            # Verify GPG is installed
+            gpg --version
+      
       # Setup Ruby using orb
       - ruby/install:
           version: '3.2.2'
