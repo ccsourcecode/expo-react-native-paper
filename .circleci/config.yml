@@ -90,7 +90,7 @@ jobs:
             ruby -v
             gem install bundler -v 2.3.20 --user-install
             export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
+            export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
             bundler -v
             
       - restore_cache:
@@ -131,9 +131,8 @@ jobs:
 
       - run:
           command: |
-            gem install bundler -v 2.3.20 --user-install
             export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
+            export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
             bundle config set --local path 'vendor/bundle'
             bundle install --jobs=4 --retry=3
           working_directory: .
@@ -247,9 +246,8 @@ jobs:
 
       - run:
           command: |
-            gem install bundler -v 2.3.20 --user-install
             export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
+            export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
             bundle config set --local path 'vendor/bundle'
             bundle install --jobs=4 --retry=3
           working_directory: .
