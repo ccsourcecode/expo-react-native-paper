@@ -13,17 +13,19 @@ fi
 # Ensure OpenSSL environment is properly set
 if brew list -1 | grep -q "^openssl@3"; then
   echo "Using installed OpenSSL 3"
-  export PATH="/usr/local/opt/openssl@3/bin:$PATH"
-  export LDFLAGS="-L/usr/local/opt/openssl@3/lib"
-  export CPPFLAGS="-I/usr/local/opt/openssl@3/include"
-  export PKG_CONFIG_PATH="/usr/local/opt/openssl@3/lib/pkgconfig"
+  export PATH="$(brew --prefix openssl@3)/bin:$PATH"
+  export LDFLAGS="-L$(brew --prefix openssl@3)/lib"
+  export CPPFLAGS="-I$(brew --prefix openssl@3)/include"
+  export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"
+  export RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl@3)"
 else
   echo "OpenSSL 3 not found, installing..."
   brew install openssl@3
-  export PATH="/usr/local/opt/openssl@3/bin:$PATH"
-  export LDFLAGS="-L/usr/local/opt/openssl@3/lib"
-  export CPPFLAGS="-I/usr/local/opt/openssl@3/include"
-  export PKG_CONFIG_PATH="/usr/local/opt/openssl@3/lib/pkgconfig"
+  export PATH="$(brew --prefix openssl@3)/bin:$PATH"
+  export LDFLAGS="-L$(brew --prefix openssl@3)/lib"
+  export CPPFLAGS="-I$(brew --prefix openssl@3)/include"
+  export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"
+  export RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl@3)"
 fi
 
 # Set environment variables for Fastlane
