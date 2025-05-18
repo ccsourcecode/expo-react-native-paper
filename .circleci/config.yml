@@ -50,7 +50,10 @@ jobs:
       # ANDROID_KEY_PASSWORD: Your key password
       # GOOGLE_PLAY_JSON_KEY: Path to your Google Play JSON key file
       # Required Ruby/OpenSSL environment variables
- 
+      
+      # APP_STORE_CONNECT_API_KEY: App Store Connect API Key (base64 encoded)
+      # IOS_PRIVATE_KEY: iOS distribution certificate private key (base64 encoded)
+
     steps:
       - checkout
       - restore_cache:
@@ -100,14 +103,28 @@ jobs:
             - ios/Pods
 
       - run:
-          name: Fastlane deploy to TestFlight
-          command: bundle exec fastlane ios beta
-          working_directory: .
+          name: Deploy to TestFlight
+          command: sh fastlane/deploy-ios.sh
+
+      - store_artifacts:
+          path: output
+          destination: ios-build
+      
+      - store_artifacts:
+          path: fastlane/screenshots
+          destination: screenshots
 
   android-build-and-deploy:
     working_directory: ~/expo-react-native-paper
     docker:
       - image: cimg/android:2022.08-node
+    environment:
+      # These environment variables should be set in CircleCI project settings:
+      # ANDROID_KEYSTORE_PASSWORD: Your keystore password
+      # ANDROID_KEY_ALIAS: Your key alias
+      # ANDROID_KEY_PASSWORD: Your key password
+      # ANDROID_PLAY_STORE_CREDENTIALS: Google Play Store credentials (base64 encoded)
+      # ANDROID_SIGNING_KEY: Android keystore file (base64 encoded)
     steps:
       - checkout:
           path: ~/expo-react-native-paper
@@ -150,9 +167,12 @@ jobs:
           command: npx expo prebuild --clean
 
       - run:
-          name: Fastlane deploy to Google Play
-          working_directory: .
-          command: bundle exec fastlane android beta
+          name: Deploy to Google Play
+          command: sh fastlane/deploy-android.sh
+          
+      - store_artifacts:
+          path: android/app/build/outputs
+          destination: android-build
 
 workflows:
   react-native-android-ios:
