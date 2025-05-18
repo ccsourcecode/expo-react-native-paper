@@ -54,6 +54,13 @@ jobs:
       - name: Install JS Dependencies
         run: npm install
       
+      - name: Create Lock Files
+        run: |
+          # Create empty lock files to prevent cache errors
+          touch Gemfile.lock
+          mkdir -p ios
+          touch ios/Podfile.lock
+      
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -113,6 +120,9 @@ jobs:
       
       - name: Install JS Dependencies
         run: npm install
+      
+      - name: Create Gemfile.lock
+        run: touch Gemfile.lock
       
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
