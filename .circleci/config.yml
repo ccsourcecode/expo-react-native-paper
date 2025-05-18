@@ -271,6 +271,17 @@ jobs:
           no_output_timeout: 20m
 
       - run:
+          name: Ensure gradlew exists
+          command: |
+            if [ ! -f "./android/gradlew" ]; then
+              echo "gradlew not found! Creating gradle wrapper..."
+              cd android
+              gradle wrapper
+              cd ..
+            fi
+            chmod +x ./android/gradlew
+            
+      - run:
           name: Configure Gradle for CI
           command: |
             echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> android/gradle.properties

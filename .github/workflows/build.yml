@@ -168,6 +168,16 @@ jobs:
         run: npx expo prebuild --clean --no-install
         timeout-minutes: 20
         
+      - name: Ensure gradlew exists
+        run: |
+          if [ ! -f "./android/gradlew" ]; then
+            echo "gradlew not found! Creating gradle wrapper..."
+            cd android
+            gradle wrapper
+            cd ..
+          fi
+          chmod +x ./android/gradlew
+        
       - name: Configure Gradle for CI
         run: |
           echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> android/gradle.properties

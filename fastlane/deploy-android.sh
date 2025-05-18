@@ -1,30 +1,37 @@
 #!/bin/bash
 set -e
 
-# Make script executable
-chmod +x fastlane/setup-android-keys.sh
+echo "Setting up Android signing keys..."
+# This script assumes that the ANDROID_SIGNING_KEY and ANDROID_PLAY_STORE_CREDENTIALS are set in environment variables
 
-# Set up Android signing keys and credentials
-./fastlane/setup-android-keys.sh
+# Run setup-android-keys.sh if it exists
+if [ -f "./fastlane/setup-android-keys.sh" ]; then
+  chmod +x ./fastlane/setup-android-keys.sh
+  ./fastlane/setup-android-keys.sh
+fi
 
-# Configure Gradle properties for improved CI performance
 echo "Configuring Gradle for optimal CI performance"
-
-# Increase Java memory allocation for Gradle
-export GRADLE_OPTS="$GRADLE_OPTS -Dorg.gradle.jvmargs=-Xmx4g"
-
-# Add progress output to prevent timeouts
-export CI_PROGRESS=true
-
-# Set environment variables for Fastlane
-export ANDROID_KEYSTORE_FILE="./android-key.keystore"
-
-# Print environment info
 echo "Java version:"
 java -version
+
+echo "Ensuring gradlew exists and is executable..."
+if [ ! -f "./android/gradlew" ]; then
+  echo "gradlew not found! Creating gradle wrapper..."
+  cd android
+  # Create gradle wrapper if it doesn't exist
+  gradle wrapper
+  cd ..
+fi
+
+# Make sure gradlew is executable
+chmod +x ./android/gradlew
+
 echo "Gradle version:"
+cd android
 ./gradlew --version
 
-# Run fastlane beta lane
-echo "Starting Android build with fastlane..."
-bundle exec fastlane android beta --verbose 
+echo "Building Android app..."
+# Add timeout to handle long builds
+timeout 40m ./gradlew app:bundleRelease app:assembleRelease --no-daemon --max-workers 2 -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs="-Xmx3g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+
+echo "Android build completed successfully!" 
