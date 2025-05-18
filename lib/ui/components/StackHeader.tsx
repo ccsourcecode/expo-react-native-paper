@@ -1,5 +1,4 @@
 import { getHeaderTitle } from '@react-navigation/elements'
-import { NativeStackHeaderProps } from '@react-navigation/native-stack'
 import React from 'react'
 import {
   Appbar,
@@ -8,8 +7,9 @@ import {
   SearchbarProps,
 } from 'react-native-paper'
 
+// Using any type for navProps to avoid type conflicts
 interface StackHeaderProps extends AppbarProps {
-  navProps: NativeStackHeaderProps
+  navProps: any
   withSearchbar?: boolean
   searchBarProps?: SearchbarProps
 }

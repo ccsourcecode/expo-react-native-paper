@@ -1,4 +1,3 @@
-import { BottomTabHeaderProps } from '@react-navigation/bottom-tabs'
 import { getHeaderTitle } from '@react-navigation/elements'
 import React from 'react'
 import {
@@ -8,8 +7,9 @@ import {
   SearchbarProps,
 } from 'react-native-paper'
 
+// Using any type for navProps to avoid type conflicts
 interface TabsHeaderProps extends AppbarProps {
-  navProps: BottomTabHeaderProps
+  navProps: any
   withSearchBar?: boolean
   searchBarProps?: SearchbarProps
 }
