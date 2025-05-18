@@ -1,0 +1,100 @@
+default_platform(:ios)
+
+before_all do
+  # Set up CI environment if running on CI
+  setup_ci if FastlaneCore::Helper.ci?
+end
+
+platform :ios do
+  desc "Take screenshots for iOS"
+  lane :screenshots do
+    capture_ios_screenshots(
+      workspace: "ios/ExpoReactNativePaper.xcworkspace",
+      scheme: "ExpoReactNativePaperUITests",
+      devices: ["iPhone 8", "iPhone 11 Pro", "iPhone 13 Pro Max"],
+      languages: ["en-US"],
+      clear_previous_screenshots: true,
+      output_directory: "fastlane/screenshots",
+      skip_open_summary: true,
+      override_status_bar: true,
+      headless: true
+    )
+  end
+
+  desc "Build iOS app for testing"
+  lane :build do
+    # Use match for code signing (in readonly mode on CI)
+    match(type: "development", readonly: true)
+
+    # Build the app
+    build_ios_app(
+      workspace: "ios/ExpoReactNativePaper.xcworkspace",
+      scheme: "ExpoReactNativePaper",
+      export_method: "development",
+      output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
+      output_name: "ExpoReactNativePaper-dev.ipa"
+    )
+  end
+
+  desc "Build and upload to TestFlight with screenshots"
+  lane :beta do
+    screenshots
+    match(type: "appstore", readonly: true)
+    build_ios_app(
+      workspace: "ios/ExpoReactNativePaper.xcworkspace",
+      scheme: "ExpoReactNativePaper",
+      export_method: "app-store",
+      output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
+      output_name: "ExpoReactNativePaper.ipa"
+    )
+    upload_to_testflight(
+      skip_screenshots: false,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end
+
+platform :android do
+  desc "Take screenshots for Android"
+  lane :screenshots do
+    capture_android_screenshots(
+      app_package_name: "com.yourname.exporeactnativepaper",
+      app_apk_path: "android/app/build/outputs/apk/debug/app-debug.apk",
+      tests_apk_path: "android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
+      locales: ["en-US"],
+      clear_previous_screenshots: true,
+      test_instrumentation_runner: "androidx.test.runner.AndroidJUnitRunner",
+      output_directory: "fastlane/metadata/android",
+      skip_open_summary: true
+    )
+  end
+
+  desc "Build Android app"
+  lane :build do
+    build_android_app(
+      task: "assemble",
+      build_type: "Release",
+      project_dir: "android/"
+    )
+  end
+
+  desc "Build and upload to Play Store internal track with screenshots"
+  lane :beta do
+    screenshots
+    build_android_app(
+      task: "bundle",
+      build_type: "Release",
+      project_dir: "android/"
+    )
+    upload_to_play_store(
+      track: 'internal',
+      skip_upload_screenshots: false
+    )
+  end
+end
+
+desc "Generate screenshots for both iOS and Android"
+lane :screenshots do
+  ios_screenshots
+  android_screenshots
+end

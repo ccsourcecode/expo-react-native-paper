@@ -17,10 +17,12 @@
     "preset": "jest-expo"
   },
   "dependencies": {
+    "@babel/runtime": "^7.27.1",
     "@expo-google-fonts/jetbrains-mono": "^0.2.3",
     "@expo-google-fonts/noto-sans": "^0.2.3",
     "@expo/vector-icons": "^14.0.3",
     "@react-navigation/drawer": "^7.0.0",
+    "@react-navigation/elements": "^2.4.2",
     "@react-navigation/native": "^7.0.0",
     "@shopify/flash-list": "1.7.3",
     "@shopify/react-native-skia": "1.5.0",
@@ -61,5 +63,6 @@
     "react-test-renderer": "18.2.0",
     "typescript": "~5.3.3"
   },
-  "private": true
+  "private": true,
+  "packageManager": "pnpm@9.12.2+sha512.22721b3a11f81661ae1ec68ce1a7b879425a1ca5b991c975b074ac220b187ce56c708fe5db69f4c962c989452eee76c82877f4ee80f474cebd61ee13461b6228"
 }

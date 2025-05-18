@@ -1,0 +1,73 @@
+version: 2.1
+
+orbs:
+  node: circleci/node@5.1.0
+
+jobs:
+  build:
+    macos:
+      xcode: "14.3.1" # Choose an appropriate Xcode version
+    environment:
+      FL_OUTPUT_DIR: output
+      FASTLANE_LANE: beta
+      # These environment variables should be set in CircleCI project settings:
+      # ASC_KEY_ID: App Store Connect API Key ID
+      # ASC_ISSUER_ID: App Store Connect API Issuer ID
+      # ASC_KEY_CONTENT: App Store Connect API Key Content (base64 encoded)
+      # APPLE_TEAM_ID: Your Apple Developer Team ID
+      # For Android builds:
+      # ANDROID_KEYSTORE_FILE: Path to your keystore file
+      # ANDROID_KEYSTORE_PASSWORD: Your keystore password
+      # ANDROID_KEY_ALIAS: Your key alias
+      # ANDROID_KEY_PASSWORD: Your key password
+      # GOOGLE_PLAY_JSON_KEY: Path to your Google Play JSON key file
+    steps:
+      - checkout
+      
+      # Setup Node.js
+      - node/install:
+          node-version: '18.18.0'
+      
+      # Install npm dependencies
+      - restore_cache:
+          keys:
+            - node-deps-v1-{{ checksum "package.json" }}
+      - run:
+          name: Install Dependencies
+          command: |
+            pnpm install
+      - save_cache:
+          key: node-deps-v1-{{ checksum "package.json" }}
+          paths:
+            - node_modules
+      
+      # Ruby setup
+      - restore_cache:
+          key: 1-gems-{{ checksum "Gemfile.lock" }}
+      - run: 
+          name: Install Ruby Dependencies
+          command: |
+            gem install bundler
+            bundle check || bundle install
+      - save_cache:
+          key: 1-gems-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
+            
+      - run:
+          name: Generate Native Code from Expo
+          command: npx expo prebuild --clean
+      - run:
+          name: Setup CI Environment
+          command: bundle exec fastlane setup_circle_ci
+      - run:
+          name: Take Screenshots
+          command: bundle exec fastlane screenshots
+      - run:
+          name: Build and Deploy
+          command: bundle exec fastlane $FASTLANE_LANE
+      - store_artifacts:
+          path: output
+      - store_artifacts:
+          path: fastlane/screenshots
+          destination: screenshots

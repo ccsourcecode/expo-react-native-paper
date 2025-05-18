@@ -1,0 +1,137 @@
+default_platform(:ios)
+
+before_all do
+  # Set up CI environment if running on CI
+  setup_ci if FastlaneCore::Helper.ci?
+end
+
+platform :ios do
+  desc "Set up code signing using App Store Connect API"
+  private_lane :setup_code_signing do
+    # Use App Store Connect API Key for authentication
+    app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_KEY_CONTENT"],
+      in_house: false # Set to true if enterprise account
+    )
+    
+    # Configure Xcode project for automatic signing
+    update_code_signing_settings(
+      use_automatic_signing: true,
+      path: "ios/ExpoReactNativePaper.xcodeproj",
+      team_id: ENV["APPLE_TEAM_ID"],
+      targets: ["ExpoReactNativePaper"], # Update with your main target name
+      build_configurations: ["Release", "Debug"]
+    )
+  end
+
+  desc "Build iOS app for testing (for CI)"
+  lane :build do
+    setup_code_signing
+    
+    # Build the app
+    build_ios_app(
+      workspace: "ios/ExpoReactNativePaper.xcworkspace",
+      scheme: "ExpoReactNativePaper",
+      export_method: "development",
+      output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
+      output_name: "ExpoReactNativePaper-dev.ipa"
+    )
+  end
+
+  desc "Build and upload to TestFlight"
+  lane :beta do
+    setup_code_signing
+    
+    # Build the app for App Store
+    build_ios_app(
+      workspace: "ios/ExpoReactNativePaper.xcworkspace",
+      scheme: "ExpoReactNativePaper",
+      export_method: "app-store",
+      output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
+      output_name: "ExpoReactNativePaper.ipa"
+    )
+    
+    # Upload to TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Take screenshots for iOS (requires UI tests)"
+  lane :screenshots do
+    capture_ios_screenshots(
+      workspace: "ios/ExpoReactNativePaper.xcworkspace",
+      scheme: "ExpoReactNativePaperUITests",
+      devices: ["iPhone 8", "iPhone 11 Pro", "iPhone 13 Pro Max"],
+      languages: ["en-US"],
+      clear_previous_screenshots: true,
+      output_directory: "fastlane/screenshots",
+      skip_open_summary: true,
+      override_status_bar: true,
+      headless: true
+    )
+  end
+end
+
+platform :android do
+  desc "Build Android app"
+  lane :build do
+    # Build the app
+    build_android_app(
+      task: "assemble",
+      build_type: "Release",
+      project_dir: "android/",
+      properties: {
+        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_FILE"],
+        "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
+      }
+    )
+  end
+
+  desc "Build and upload to Play Store internal track"
+  lane :beta do
+    # Build Android App Bundle
+    build_android_app(
+      task: "bundle",
+      build_type: "Release",
+      project_dir: "android/",
+      properties: {
+        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_FILE"],
+        "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
+      }
+    )
+    
+    # Upload to Play Store
+    upload_to_play_store(
+      track: 'internal',
+      json_key: ENV["GOOGLE_PLAY_JSON_KEY"],
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Take screenshots for Android (requires Espresso tests)"
+  lane :screenshots do
+    capture_android_screenshots(
+      app_package_name: "com.yourname.exporeactnativepaper",
+      app_apk_path: "android/app/build/outputs/apk/debug/app-debug.apk",
+      tests_apk_path: "android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
+      locales: ["en-US"],
+      clear_previous_screenshots: true,
+      test_instrumentation_runner: "androidx.test.runner.AndroidJUnitRunner",
+      output_directory: "fastlane/metadata/android",
+      skip_open_summary: true
+    )
+  end
+end
+
+desc "Generate screenshots for both iOS and Android (if UI tests exist)"
+lane :screenshots do
+  ios_screenshots
+  android_screenshots
+end
