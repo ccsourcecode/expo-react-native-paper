@@ -85,14 +85,20 @@ jobs:
             ruby -v
             
       - run:
+          name: Fix OpenSSL issues
+          command: |
+            chmod +x fastlane/fix-openssl.sh
+            ./fastlane/fix-openssl.sh
+            
+      - run:
           name: Install compatible OpenSSL
           command: |
-            # Install OpenSSL 1.1 for compatibility with App Store Connect API
-            brew install openssl@1.1
-            echo 'export PATH="/usr/local/opt/openssl@1.1/bin:$PATH"' >> $BASH_ENV
-            echo 'export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"' >> $BASH_ENV
-            echo 'export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"' >> $BASH_ENV
-            echo 'export PKG_CONFIG_PATH="/usr/local/opt/openssl@1.1/lib/pkgconfig"' >> $BASH_ENV
+            # Install OpenSSL 3 (openssl@1.1 is deprecated as of 2024-10-24)
+            brew install openssl@3
+            echo 'export PATH="/usr/local/opt/openssl@3/bin:$PATH"' >> $BASH_ENV
+            echo 'export LDFLAGS="-L/usr/local/opt/openssl@3/lib"' >> $BASH_ENV
+            echo 'export CPPFLAGS="-I/usr/local/opt/openssl@3/include"' >> $BASH_ENV
+            echo 'export PKG_CONFIG_PATH="/usr/local/opt/openssl@3/lib/pkgconfig"' >> $BASH_ENV
             source $BASH_ENV
             
       - run:

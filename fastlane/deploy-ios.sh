@@ -3,20 +3,27 @@ set -e
 
 echo "Setting up iOS deployment environment..."
 
+# Fix OpenSSL issues
+if [ -f "./fastlane/fix-openssl.sh" ]; then
+  echo "Running OpenSSL fix script..."
+  chmod +x ./fastlane/fix-openssl.sh
+  ./fastlane/fix-openssl.sh
+fi
+
 # Ensure OpenSSL environment is properly set
-if brew list -1 | grep -q "^openssl@1.1"; then
-  echo "Using installed OpenSSL 1.1"
-  export PATH="/usr/local/opt/openssl@1.1/bin:$PATH"
-  export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"
-  export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"
-  export PKG_CONFIG_PATH="/usr/local/opt/openssl@1.1/lib/pkgconfig"
+if brew list -1 | grep -q "^openssl@3"; then
+  echo "Using installed OpenSSL 3"
+  export PATH="/usr/local/opt/openssl@3/bin:$PATH"
+  export LDFLAGS="-L/usr/local/opt/openssl@3/lib"
+  export CPPFLAGS="-I/usr/local/opt/openssl@3/include"
+  export PKG_CONFIG_PATH="/usr/local/opt/openssl@3/lib/pkgconfig"
 else
-  echo "OpenSSL 1.1 not found, installing..."
-  brew install openssl@1.1
-  export PATH="/usr/local/opt/openssl@1.1/bin:$PATH"
-  export LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"
-  export CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"
-  export PKG_CONFIG_PATH="/usr/local/opt/openssl@1.1/lib/pkgconfig"
+  echo "OpenSSL 3 not found, installing..."
+  brew install openssl@3
+  export PATH="/usr/local/opt/openssl@3/bin:$PATH"
+  export LDFLAGS="-L/usr/local/opt/openssl@3/lib"
+  export CPPFLAGS="-I/usr/local/opt/openssl@3/include"
+  export PKG_CONFIG_PATH="/usr/local/opt/openssl@3/lib/pkgconfig"
 fi
 
 # Set environment variables for Fastlane
