@@ -5,9 +5,36 @@ orbs:
   ruby: circleci/ruby@2.1.1
 
 jobs:
-  build:
+  react-native-test:
+    docker:
+      - image: cimg/node:18.8
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
+
+      - restore_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+
+      - run: npm install
+      - run: npm test
+      - run: npm run tsc
+
+      - save_cache:
+          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
+          paths:
+            - ~/.npm
+
+      - save_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+          paths:
+            - node_modules
+
+  macos-build-and-deploy:
     macos:
-      xcode: "14.3.1" # Choose an appropriate Xcode version
+      xcode: 13.4.1
     environment:
       FL_OUTPUT_DIR: output
       FASTLANE_LANE: beta
@@ -23,113 +50,125 @@ jobs:
       # ANDROID_KEY_PASSWORD: Your key password
       # GOOGLE_PLAY_JSON_KEY: Path to your Google Play JSON key file
       # Required Ruby/OpenSSL environment variables
-      GEM_HOME: /Users/distiller/.gem
-      GEM_PATH: /Users/distiller/.gem
+ 
     steps:
       - checkout
-      
-      # Setup Node.js
-      - node/install:
-          node-version: '18.18.0'
-      
-      # Install dependencies using npm
       - restore_cache:
-          keys:
-            - npm-deps-v1-{{ checksum "package.json" }}
-      - run:
-          name: Install Dependencies
-          command: |
-            echo "Using npm for package installation"
-            npm install
+          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
+
+      - restore_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+
+      - run: npm install
+
       - save_cache:
-          key: npm-deps-v1-{{ checksum "package.json" }}
+          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
+          paths:
+            - ~/.npm
+
+      - save_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
           paths:
             - node_modules
-      
-      # Install required dependencies for RVM and Ruby
-      - run:
-          name: Install GPG, OpenSSL and other prerequisites
-          command: |
-            brew update
-            brew install gnupg
-            brew install openssl@3
-            brew install curl
-            # Verify GPG is installed
-            gpg --version
-            # Set OpenSSL paths
-            echo 'export PATH="/usr/local/opt/openssl@3/bin:$PATH"' >> $BASH_ENV
-            echo 'export LDFLAGS="-L/usr/local/opt/openssl@3/lib"' >> $BASH_ENV
-            echo 'export CPPFLAGS="-I/usr/local/opt/openssl@3/include"' >> $BASH_ENV
-            echo 'export PKG_CONFIG_PATH="/usr/local/opt/openssl@3/lib/pkgconfig"' >> $BASH_ENV
-            # Set OpenSSL flags for Ruby
-            echo 'export RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl@3)"' >> $BASH_ENV
-            source $BASH_ENV
-      
-      # Create .ruby-version file for consistent version
-      - run:
-          name: Create Ruby version file
-          command: echo "3.3.8" > .ruby-version
-      
-      # Setup Ruby using orb
-      - ruby/install:
-          version: '3.3.8'
-      
-      # Explicitly configure Ruby with OpenSSL
-      - run:
-          name: Configure Ruby with OpenSSL
-          command: |
-            # Set required environment variables
-            echo 'export GEM_HOME="/Users/distiller/.gem"' >> $BASH_ENV
-            echo 'export GEM_PATH="/Users/distiller/.gem"' >> $BASH_ENV
-            echo 'export SSL_CERT_FILE="$(brew --prefix)/etc/openssl@3/cert.pem"' >> $BASH_ENV
-            echo 'export OPENSSL_CFLAGS="-I$(brew --prefix openssl@3)/include"' >> $BASH_ENV
-            echo 'export OPENSSL_LIBS="-L$(brew --prefix openssl@3)/lib -lssl -lcrypto"' >> $BASH_ENV
-            source $BASH_ENV
-            
-            # Verify environment
-            echo "Ruby location: $(which ruby)"
-            echo "Ruby version: $(ruby -v)"
-            echo "Gem location: $(which gem)"
-            echo "Gem env:"
-            gem env
-      
-      # Ruby dependencies
+
       - restore_cache:
-          key: 1-gems-{{ checksum "Gemfile.lock" }}
-      - run: 
-          name: Install Ruby Dependencies
-          command: |
-            # Confirm OpenSSL is available to Ruby
-            ruby -ropenssl -e "puts OpenSSL::OPENSSL_VERSION"
-            
-            # Install bundler with specific options
-            gem install bundler --no-document --conservative
-            
-            # Configure bundler
-            bundle config set --local path 'vendor/bundle'
-            bundle config build.nokogiri --use-system-libraries
-            
-            # Install dependencies
-            bundle install
+          key: bundle-v1-{{ checksum "Gemfile.lock" }}-{{ arch }}
+
+      - run:
+          command: bundle install
+          working_directory: .
+
       - save_cache:
-          key: 1-gems-{{ checksum "Gemfile.lock" }}
+          key: bundle-v1-{{ checksum "Gemfile.lock" }}-{{ arch }}
           paths:
             - vendor/bundle
-            
+
       - run:
           name: Generate Native Code from Expo
           command: npx expo prebuild --clean
+
+      - restore_cache:
+          key: pods-v1-{{ checksum "ios/Podfile.lock" }}-{{ arch }}
+
       - run:
-          name: Setup CI Environment
-          command: bundle exec fastlane setup_circle_ci
+          command: pod install
+          working_directory: ios
+
+      - save_cache:
+          key: pods-v1-{{ checksum "ios/Podfile.lock" }}-{{ arch }}
+          paths:
+            - ios/Pods
+
       - run:
-          name: Take Screenshots
-          command: bundle exec fastlane screenshots
+          name: Fastlane deploy to TestFlight
+          command: bundle exec fastlane ios beta
+          working_directory: .
+
+  android-build-and-deploy:
+    working_directory: ~/expo-react-native-paper
+    docker:
+      - image: cimg/android:2022.08-node
+    steps:
+      - checkout:
+          path: ~/expo-react-native-paper
+
+      - attach_workspace:
+          at: ~/expo-react-native-paper
+
+      - restore_cache:
+          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
+
+      - restore_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+
+      - run: npm install
+
+      - save_cache:
+          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
+          paths:
+            - ~/.npm
+
+      - save_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+          paths:
+            - node_modules
+
+      - restore_cache:
+          key: bundle-v1-{{ checksum "Gemfile.lock" }}-{{ arch }}
+
       - run:
-          name: Build and Deploy
-          command: bundle exec fastlane $FASTLANE_LANE
-      - store_artifacts:
-          path: output
-      - store_artifacts:
-          path: fastlane/screenshots
-          destination: screenshots
+          command: bundle install
+          working_directory: .
+
+      - save_cache:
+          key: bundle-v1-{{ checksum "Gemfile.lock" }}-{{ arch }}
+          paths:
+            - vendor/bundle
+
+      - run:
+          name: Generate Native Code from Expo
+          command: npx expo prebuild --clean
+
+      - run:
+          name: Fastlane deploy to Google Play
+          working_directory: .
+          command: bundle exec fastlane android beta
+
+workflows:
+  react-native-android-ios:
+    jobs:
+      - react-native-test
+      - approve_deploy_to_apple_app_store:
+          type: approval
+          requires:
+            - react-native-test
+      - approve_deploy_to_google_play_store:
+          type: approval
+          requires:
+            - react-native-test
+      - android-build-and-deploy:
+          requires:
+            - approve_deploy_to_google_play_store
+      - macos-build-and-deploy:
+          requires:
+            - approve_deploy_to_apple_app_store

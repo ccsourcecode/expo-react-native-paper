@@ -1,4 +1,4 @@
-name: Build, Screenshot and Deploy
+name: Build and Deploy
 
 on:
   push:
@@ -7,90 +7,59 @@ on:
     branches: [ main ]
 
 jobs:
-  ios:
-    runs-on: macos-latest
-    env:
-      # These environment variables should be set in GitHub Secrets:
-      # ASC_KEY_ID: App Store Connect API Key ID
-      # ASC_ISSUER_ID: App Store Connect API Issuer ID
-      # ASC_KEY_CONTENT: App Store Connect API Key Content (base64 encoded)
-      # APPLE_TEAM_ID: Your Apple Developer Team ID
-      # Required Ruby/OpenSSL environment variables
-      GEM_HOME: ${{ github.workspace }}/.gem
-      GEM_PATH: ${{ github.workspace }}/.gem
+  react-native-test:
+    runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v3
       
-      # Create Ruby version file
-      - name: Create Ruby version file
-        run: echo "3.3.8" > .ruby-version
-      
-      # Set up Node.js
       - uses: actions/setup-node@v3
         with:
           node-version: '18.x'
           cache: 'npm'
       
-      # Install Node.js dependencies
-      - name: Install JS dependencies
+      - name: Install Dependencies
         run: npm install
       
-      # Install prerequisites for Ruby
-      - name: Install GPG, OpenSSL and other prerequisites
-        run: |
-          brew update
-          brew install gnupg
-          brew install openssl@3
-          brew install curl
-          gpg --version
-          
-          # Configure OpenSSL
-          echo "PATH=/usr/local/opt/openssl@3/bin:$PATH" >> $GITHUB_ENV
-          echo "LDFLAGS=-L/usr/local/opt/openssl@3/lib" >> $GITHUB_ENV
-          echo "CPPFLAGS=-I/usr/local/opt/openssl@3/include" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=/usr/local/opt/openssl@3/lib/pkgconfig" >> $GITHUB_ENV
-          echo "RUBY_CONFIGURE_OPTS=--with-openssl-dir=$(brew --prefix openssl@3)" >> $GITHUB_ENV
-        
-      # Setup Ruby
-      - uses: ruby/setup-ruby@v1
+      - name: Run Tests
+        run: npm test
+      
+      - name: TypeScript Check
+        run: npm run tsc
+  
+  ios-build:
+    needs: react-native-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: actions/setup-node@v3
         with:
-          ruby-version: '3.3.8'
+          node-version: '18.x'
+          cache: 'npm'
+      
+      - name: Install JS Dependencies
+        run: npm install
+      
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1.3'
           bundler-cache: true
           
-      - name: Configure Ruby with OpenSSL
-        run: |
-          # Configure OpenSSL certificates
-          echo "SSL_CERT_FILE=$(brew --prefix)/etc/openssl@3/cert.pem" >> $GITHUB_ENV
-          echo "OPENSSL_CFLAGS=-I$(brew --prefix openssl@3)/include" >> $GITHUB_ENV
-          echo "OPENSSL_LIBS=-L$(brew --prefix openssl@3)/lib -lssl -lcrypto" >> $GITHUB_ENV
-          
-          # Verify environment
-          echo "Ruby location: $(which ruby)"
-          echo "Ruby version: $(ruby -v)"
-          echo "Gem location: $(which gem)"
-          echo "Gem env:"
-          gem env
-          
-          # Confirm OpenSSL is available to Ruby
-          ruby -ropenssl -e "puts OpenSSL::OPENSSL_VERSION"
-          
-      - name: Install Ruby dependencies
-        run: |
-          # Install bundler with specific options
-          gem install bundler --no-document --conservative
-          
-          bundle config set --local path 'vendor/bundle'
-          bundle config build.nokogiri --use-system-libraries
-          bundle install
+      - name: Install Ruby Dependencies
+        run: bundle install
         
       - name: Generate Native Code from Expo
         run: npx expo prebuild --clean
         
-      - name: Setup CI
-        run: bundle exec fastlane setup_ci
+      - name: Install CocoaPods
+        run: cd ios && pod install
         
-      - name: Build iOS
-        run: bundle exec fastlane ios build
+      - name: Build iOS App
+        run: bundle exec fastlane ios beta
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -103,71 +72,36 @@ jobs:
           name: ios-build
           path: build/*.ipa
 
-  android:
+  android-build:
+    needs: react-native-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    env:
-      # Required Ruby/OpenSSL environment variables
-      GEM_HOME: ${{ github.workspace }}/.gem
-      GEM_PATH: ${{ github.workspace }}/.gem
+    
     steps:
       - uses: actions/checkout@v3
       
-      # Create Ruby version file
-      - name: Create Ruby version file
-        run: echo "3.3.8" > .ruby-version
-      
-      # Set up Node.js
       - uses: actions/setup-node@v3
         with:
           node-version: '18.x'
           cache: 'npm'
       
-      # Install Node.js dependencies
-      - name: Install JS dependencies
+      - name: Install JS Dependencies
         run: npm install
       
-      # Install prerequisites for Ruby (on Ubuntu)
-      - name: Install OpenSSL and other prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gnupg2 curl libssl-dev
-          gpg --version
-          
-          # Set environment variables for OpenSSL
-          echo "RUBY_CONFIGURE_OPTS=--with-openssl-dir=/usr" >> $GITHUB_ENV
-        
-      - uses: ruby/setup-ruby@v1
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.3.8'
+          ruby-version: '3.1.3'
           bundler-cache: true
           
-      - name: Configure Ruby with OpenSSL
-        run: |
-          # Verify environment
-          echo "Ruby location: $(which ruby)"
-          echo "Ruby version: $(ruby -v)"
-          echo "Gem location: $(which gem)"
-          echo "Gem env:"
-          gem env
-          
-          # Confirm OpenSSL is available to Ruby
-          ruby -ropenssl -e "puts OpenSSL::OPENSSL_VERSION"
-          
+      - name: Install Ruby Dependencies
+        run: bundle install
+        
       - uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '11'
-          
-      - name: Install Ruby dependencies
-        run: |
-          # Install bundler with specific options
-          gem install bundler --no-document --conservative
-          
-          bundle config set --local path 'vendor/bundle'
-          bundle config build.nokogiri --use-system-libraries
-          bundle install
         
-      # Decode and save the Android keystore file
       - name: Decode Android keystore
         if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         run: |
@@ -178,8 +112,8 @@ jobs:
       - name: Generate Native Code from Expo
         run: npx expo prebuild --clean
         
-      - name: Build Android
-        run: bundle exec fastlane android build
+      - name: Build Android App
+        run: bundle exec fastlane android beta
         env:
           ANDROID_KEYSTORE_FILE: ${{ env.ANDROID_KEYSTORE_FILE || 'android/app/debug.keystore' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
