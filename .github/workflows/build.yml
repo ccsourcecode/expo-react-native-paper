@@ -15,8 +15,15 @@ jobs:
       # ASC_ISSUER_ID: App Store Connect API Issuer ID
       # ASC_KEY_CONTENT: App Store Connect API Key Content (base64 encoded)
       # APPLE_TEAM_ID: Your Apple Developer Team ID
+      # Required Ruby/OpenSSL environment variables
+      GEM_HOME: ${{ github.workspace }}/.gem
+      GEM_PATH: ${{ github.workspace }}/.gem
     steps:
       - uses: actions/checkout@v3
+      
+      # Create Ruby version file
+      - name: Create Ruby version file
+        run: echo "3.3.8" > .ruby-version
       
       # Set up Node.js
       - uses: actions/setup-node@v3
@@ -42,6 +49,7 @@ jobs:
           echo "LDFLAGS=-L/usr/local/opt/openssl@3/lib" >> $GITHUB_ENV
           echo "CPPFLAGS=-I/usr/local/opt/openssl@3/include" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=/usr/local/opt/openssl@3/lib/pkgconfig" >> $GITHUB_ENV
+          echo "RUBY_CONFIGURE_OPTS=--with-openssl-dir=$(brew --prefix openssl@3)" >> $GITHUB_ENV
         
       # Setup Ruby
       - uses: ruby/setup-ruby@v1
@@ -49,11 +57,27 @@ jobs:
           ruby-version: '3.3.8'
           bundler-cache: true
           
+      - name: Configure Ruby with OpenSSL
+        run: |
+          # Configure OpenSSL certificates
+          echo "SSL_CERT_FILE=$(brew --prefix)/etc/openssl@3/cert.pem" >> $GITHUB_ENV
+          echo "OPENSSL_CFLAGS=-I$(brew --prefix openssl@3)/include" >> $GITHUB_ENV
+          echo "OPENSSL_LIBS=-L$(brew --prefix openssl@3)/lib -lssl -lcrypto" >> $GITHUB_ENV
+          
+          # Verify environment
+          echo "Ruby location: $(which ruby)"
+          echo "Ruby version: $(ruby -v)"
+          echo "Gem location: $(which gem)"
+          echo "Gem env:"
+          gem env
+          
+          # Confirm OpenSSL is available to Ruby
+          ruby -ropenssl -e "puts OpenSSL::OPENSSL_VERSION"
+          
       - name: Install Ruby dependencies
         run: |
-          # Configure gem environment
-          echo "GEM_HOME=$HOME/.gem" >> $GITHUB_ENV
-          echo "GEM_PATH=$HOME/.gem" >> $GITHUB_ENV
+          # Install bundler with specific options
+          gem install bundler --no-document --conservative
           
           bundle config set --local path 'vendor/bundle'
           bundle config build.nokogiri --use-system-libraries
@@ -82,13 +106,15 @@ jobs:
   android:
     runs-on: ubuntu-latest
     env:
-      # These environment variables should be set in GitHub Secrets:
-      # ANDROID_KEYSTORE_PASSWORD: Your keystore password
-      # ANDROID_KEY_ALIAS: Your key alias
-      # ANDROID_KEY_PASSWORD: Your key password
-      # ANDROID_KEYSTORE_BASE64: Your base64-encoded keystore file
+      # Required Ruby/OpenSSL environment variables
+      GEM_HOME: ${{ github.workspace }}/.gem
+      GEM_PATH: ${{ github.workspace }}/.gem
     steps:
       - uses: actions/checkout@v3
+      
+      # Create Ruby version file
+      - name: Create Ruby version file
+        run: echo "3.3.8" > .ruby-version
       
       # Set up Node.js
       - uses: actions/setup-node@v3
@@ -101,16 +127,31 @@ jobs:
         run: npm install
       
       # Install prerequisites for Ruby (on Ubuntu)
-      - name: Install GPG and other prerequisites
+      - name: Install OpenSSL and other prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install -y gnupg2 curl libssl-dev
           gpg --version
+          
+          # Set environment variables for OpenSSL
+          echo "RUBY_CONFIGURE_OPTS=--with-openssl-dir=/usr" >> $GITHUB_ENV
         
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3.8'
           bundler-cache: true
+          
+      - name: Configure Ruby with OpenSSL
+        run: |
+          # Verify environment
+          echo "Ruby location: $(which ruby)"
+          echo "Ruby version: $(ruby -v)"
+          echo "Gem location: $(which gem)"
+          echo "Gem env:"
+          gem env
+          
+          # Confirm OpenSSL is available to Ruby
+          ruby -ropenssl -e "puts OpenSSL::OPENSSL_VERSION"
           
       - uses: actions/setup-java@v3
         with:
@@ -119,9 +160,8 @@ jobs:
           
       - name: Install Ruby dependencies
         run: |
-          # Configure gem environment
-          echo "GEM_HOME=$HOME/.gem" >> $GITHUB_ENV
-          echo "GEM_PATH=$HOME/.gem" >> $GITHUB_ENV
+          # Install bundler with specific options
+          gem install bundler --no-document --conservative
           
           bundle config set --local path 'vendor/bundle'
           bundle config build.nokogiri --use-system-libraries

@@ -22,6 +22,9 @@ jobs:
       # ANDROID_KEY_ALIAS: Your key alias
       # ANDROID_KEY_PASSWORD: Your key password
       # GOOGLE_PLAY_JSON_KEY: Path to your Google Play JSON key file
+      # Required Ruby/OpenSSL environment variables
+      GEM_HOME: /Users/distiller/.gem
+      GEM_PATH: /Users/distiller/.gem
     steps:
       - checkout
       
@@ -58,11 +61,37 @@ jobs:
             echo 'export LDFLAGS="-L/usr/local/opt/openssl@3/lib"' >> $BASH_ENV
             echo 'export CPPFLAGS="-I/usr/local/opt/openssl@3/include"' >> $BASH_ENV
             echo 'export PKG_CONFIG_PATH="/usr/local/opt/openssl@3/lib/pkgconfig"' >> $BASH_ENV
+            # Set OpenSSL flags for Ruby
+            echo 'export RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl@3)"' >> $BASH_ENV
             source $BASH_ENV
+      
+      # Create .ruby-version file for consistent version
+      - run:
+          name: Create Ruby version file
+          command: echo "3.3.8" > .ruby-version
       
       # Setup Ruby using orb
       - ruby/install:
           version: '3.3.8'
+      
+      # Explicitly configure Ruby with OpenSSL
+      - run:
+          name: Configure Ruby with OpenSSL
+          command: |
+            # Set required environment variables
+            echo 'export GEM_HOME="/Users/distiller/.gem"' >> $BASH_ENV
+            echo 'export GEM_PATH="/Users/distiller/.gem"' >> $BASH_ENV
+            echo 'export SSL_CERT_FILE="$(brew --prefix)/etc/openssl@3/cert.pem"' >> $BASH_ENV
+            echo 'export OPENSSL_CFLAGS="-I$(brew --prefix openssl@3)/include"' >> $BASH_ENV
+            echo 'export OPENSSL_LIBS="-L$(brew --prefix openssl@3)/lib -lssl -lcrypto"' >> $BASH_ENV
+            source $BASH_ENV
+            
+            # Verify environment
+            echo "Ruby location: $(which ruby)"
+            echo "Ruby version: $(ruby -v)"
+            echo "Gem location: $(which gem)"
+            echo "Gem env:"
+            gem env
       
       # Ruby dependencies
       - restore_cache:
@@ -70,13 +99,11 @@ jobs:
       - run: 
           name: Install Ruby Dependencies
           command: |
-            # Set GEM_HOME and GEM_PATH
-            echo 'export GEM_HOME="$HOME/.gem"' >> $BASH_ENV
-            echo 'export GEM_PATH="$HOME/.gem"' >> $BASH_ENV
-            source $BASH_ENV
+            # Confirm OpenSSL is available to Ruby
+            ruby -ropenssl -e "puts OpenSSL::OPENSSL_VERSION"
             
-            # Install bundler with custom options
-            gem install bundler --no-document
+            # Install bundler with specific options
+            gem install bundler --no-document --conservative
             
             # Configure bundler
             bundle config set --local path 'vendor/bundle'
