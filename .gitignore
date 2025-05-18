@@ -74,3 +74,6 @@ yarn-error.*
 
 expo-env.d.ts
 # @end expo-cli
+# SpecStory explanation file
+.specstory/.what-is-this.md
+.history

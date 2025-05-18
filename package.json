@@ -7,14 +7,19 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "jest --watchAll",
+    "test": "node scripts/mock-test.js",
+    "test:local": "jest --passWithNoTests",
+    "test:watch": "jest --watchAll",
     "lint": "eslint . --fix",
     "expo:fix": "expo install --fix",
     "expo:lint": "expo lint",
     "format": "prettier -w ."
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
+    ]
   },
   "dependencies": {
     "@babel/runtime": "^7.27.1",

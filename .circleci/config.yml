@@ -8,6 +8,8 @@ jobs:
   react-native-test:
     docker:
       - image: cimg/node:18.8
+    environment:
+      CI: true
 
     steps:
       - checkout
