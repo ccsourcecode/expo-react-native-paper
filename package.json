@@ -17,10 +17,12 @@
     "preset": "jest-expo"
   },
   "dependencies": {
+    "@babel/runtime": "^7.27.1",
     "@expo-google-fonts/jetbrains-mono": "^0.2.3",
     "@expo-google-fonts/noto-sans": "^0.2.3",
     "@expo/vector-icons": "^14.0.3",
     "@react-navigation/drawer": "^7.0.0",
+    "@react-navigation/elements": "^2.4.2",
     "@react-navigation/native": "^7.0.0",
     "@shopify/flash-list": "1.7.3",
     "@shopify/react-native-skia": "1.5.0",
