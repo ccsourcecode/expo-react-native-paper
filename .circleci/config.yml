@@ -43,15 +43,22 @@ jobs:
           paths:
             - node_modules
       
-      # Install required dependencies for RVM
+      # Install required dependencies for RVM and Ruby
       - run:
-          name: Install GPG and other prerequisites
+          name: Install GPG, OpenSSL and other prerequisites
           command: |
             brew update
             brew install gnupg
+            brew install openssl@3
             brew install curl
             # Verify GPG is installed
             gpg --version
+            # Set OpenSSL paths
+            echo 'export PATH="/usr/local/opt/openssl@3/bin:$PATH"' >> $BASH_ENV
+            echo 'export LDFLAGS="-L/usr/local/opt/openssl@3/lib"' >> $BASH_ENV
+            echo 'export CPPFLAGS="-I/usr/local/opt/openssl@3/include"' >> $BASH_ENV
+            echo 'export PKG_CONFIG_PATH="/usr/local/opt/openssl@3/lib/pkgconfig"' >> $BASH_ENV
+            source $BASH_ENV
       
       # Setup Ruby using orb
       - ruby/install:
@@ -63,8 +70,19 @@ jobs:
       - run: 
           name: Install Ruby Dependencies
           command: |
-            gem install bundler
+            # Set GEM_HOME and GEM_PATH
+            echo 'export GEM_HOME="$HOME/.gem"' >> $BASH_ENV
+            echo 'export GEM_PATH="$HOME/.gem"' >> $BASH_ENV
+            source $BASH_ENV
+            
+            # Install bundler with custom options
+            gem install bundler --no-document
+            
+            # Configure bundler
             bundle config set --local path 'vendor/bundle'
+            bundle config build.nokogiri --use-system-libraries
+            
+            # Install dependencies
             bundle install
       - save_cache:
           key: 1-gems-{{ checksum "Gemfile.lock" }}

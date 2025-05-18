@@ -29,12 +29,19 @@ jobs:
         run: npm install
       
       # Install prerequisites for Ruby
-      - name: Install GPG and other prerequisites
+      - name: Install GPG, OpenSSL and other prerequisites
         run: |
           brew update
           brew install gnupg
+          brew install openssl@3
           brew install curl
           gpg --version
+          
+          # Configure OpenSSL
+          echo "PATH=/usr/local/opt/openssl@3/bin:$PATH" >> $GITHUB_ENV
+          echo "LDFLAGS=-L/usr/local/opt/openssl@3/lib" >> $GITHUB_ENV
+          echo "CPPFLAGS=-I/usr/local/opt/openssl@3/include" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/local/opt/openssl@3/lib/pkgconfig" >> $GITHUB_ENV
         
       # Setup Ruby
       - uses: ruby/setup-ruby@v1
@@ -44,7 +51,12 @@ jobs:
           
       - name: Install Ruby dependencies
         run: |
+          # Configure gem environment
+          echo "GEM_HOME=$HOME/.gem" >> $GITHUB_ENV
+          echo "GEM_PATH=$HOME/.gem" >> $GITHUB_ENV
+          
           bundle config set --local path 'vendor/bundle'
+          bundle config build.nokogiri --use-system-libraries
           bundle install
         
       - name: Generate Native Code from Expo
@@ -92,7 +104,7 @@ jobs:
       - name: Install GPG and other prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y gnupg2 curl
+          sudo apt-get install -y gnupg2 curl libssl-dev
           gpg --version
         
       - uses: ruby/setup-ruby@v1
@@ -107,7 +119,12 @@ jobs:
           
       - name: Install Ruby dependencies
         run: |
+          # Configure gem environment
+          echo "GEM_HOME=$HOME/.gem" >> $GITHUB_ENV
+          echo "GEM_PATH=$HOME/.gem" >> $GITHUB_ENV
+          
           bundle config set --local path 'vendor/bundle'
+          bundle config build.nokogiri --use-system-libraries
           bundle install
         
       # Decode and save the Android keystore file
