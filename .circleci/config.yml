@@ -60,7 +60,7 @@ jobs:
       # Required Ruby/OpenSSL environment variables
       
       # APP_STORE_CONNECT_API_KEY: App Store Connect API Key (base64 encoded)
-      # IOS_PRIVATE_KEY: iOS distribution certificate private key (base64 encoded)
+      # IOS_PRIVATE_KEY:  iOS distribution certificate private key (base64 encoded)
 
     steps:
       - checkout
