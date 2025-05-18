@@ -55,7 +55,7 @@ jobs:
       
       # Setup Ruby using orb
       - ruby/install:
-          version: '3.2.2'
+          version: '3.3.8'
       
       # Ruby dependencies
       - restore_cache:
