@@ -24,14 +24,39 @@ platform :ios do
     UI.message("Key starts with proper header: #{ENV["ASC_KEY_CONTENT"] && ENV["ASC_KEY_CONTENT"].start_with?("-----BEGIN") ? 'Yes' : 'No'}")
     UI.message("Key includes newlines (\\n): #{ENV["ASC_KEY_CONTENT"] && ENV["ASC_KEY_CONTENT"].include?('\n') ? 'Yes' : 'No'}")
     
-    # Use App Store Connect API Key for authentication
-    app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_filepath: ENV["ASC_KEY_FILEPATH"] || nil,
-      key_content: ENV["ASC_KEY_CONTENT"] || nil,
-      in_house: false # Set to true if enterprise account
-    )
+    # Try using one of these approaches to fix the "invalid curve name" error:
+    
+    # Option 1: Use is_key_content_base64 if your key is base64 encoded
+    if ENV["ASC_KEY_CONTENT_BASE64"]
+      app_store_connect_api_key(
+        key_id: ENV["ASC_KEY_ID"],
+        issuer_id: ENV["ASC_ISSUER_ID"],
+        key_content: ENV["ASC_KEY_CONTENT_BASE64"],
+        is_key_content_base64: true,
+        in_house: false
+      )
+    # Option 2: Use key_filepath if you have the .p8 file
+    elsif ENV["ASC_KEY_FILEPATH"]
+      app_store_connect_api_key(
+        key_id: ENV["ASC_KEY_ID"],
+        issuer_id: ENV["ASC_ISSUER_ID"],
+        key_filepath: ENV["ASC_KEY_FILEPATH"],
+        in_house: false
+      )
+    # Option 3: Fall back to Apple ID authentication if API key doesn't work
+    elsif ENV["FASTLANE_USER"] && ENV["FASTLANE_PASSWORD"]
+      UI.important("Using Apple ID authentication instead of App Store Connect API key")
+      # No explicit action needed, fastlane will use these environment variables
+    # Option 4: Try with the regular key_content as a last resort
+    else
+      UI.important("Attempting with standard key_content - if this fails, try base64 encoding your key")
+      app_store_connect_api_key(
+        key_id: ENV["ASC_KEY_ID"],
+        issuer_id: ENV["ASC_ISSUER_ID"],
+        key_content: ENV["ASC_KEY_CONTENT"],
+        in_house: false
+      )
+    end
     
     # Configure Xcode project for automatic signing
     update_code_signing_settings(
