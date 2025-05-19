@@ -110,6 +110,18 @@ jobs:
               exit 1
             fi
       - run:
+          name: Show Xcode project details
+          command: |
+            echo "===== LISTING PROJECT DIRECTORY STRUCTURE ====="
+            find ios -type f -name "*.pbxproj" -exec ls -la {} \;
+            
+            echo "===== CHECKING SCHEME NAMES ====="
+            cd ios
+            xcodebuild -list -workspace exporeactnativepaper.xcworkspace
+            
+            echo "===== CHECKING DEPLOYMENT TARGET ====="
+            grep -r "IPHONEOS_DEPLOYMENT_TARGET" ios/exporeactnativepaper.xcodeproj
+      - run:
           name: Run tests and upload to TestFlight
           command: |
             # Set non-interactive mode explicitly
@@ -119,6 +131,16 @@ jobs:
             # Run fastlane from the root directory where Fastfile is located
             bundle exec fastlane ios uploadtestflight --verbose
           no_output_timeout: 30m
+      - run:
+          name: Show build logs if failed
+          command: |
+            if [ -d "output/buildlogs" ]; then
+              echo "===== BUILD LOGS ====="
+              cat output/buildlogs/gym/exporeactnativepaper-exporeactnativepaper.log || echo "Log file not found"
+            else
+              echo "No build logs found"
+            fi
+          when: on_fail
 
   build-ruby:
     docker:

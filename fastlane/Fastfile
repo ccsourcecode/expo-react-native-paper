@@ -126,7 +126,7 @@ platform :ios do
       export_method: "development",
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
       output_name: "exporeactnativepaper-dev.ipa",
-      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO" # Performance optimization
+      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=12.0" # Set minimum iOS version to 12.0
     )
   end
 
@@ -146,14 +146,11 @@ platform :ios do
       export_method: "app-store",
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
       output_name: "exporeactnativepaper.ipa",
-      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO", # Performance optimization
+      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=12.0", # Set minimum iOS version to 12.0
       clean: true,
       include_bitcode: false, # Performance optimization
       export_options: {
-        provisioningProfiles: {
-          "com.yourcompany.exporeactnativepaper" => ENV["PROVISIONING_PROFILE_NAME"] || "match AppStore com.yourcompany.exporeactnativepaper"
-        },
-        signingStyle: "manual",
+        signingStyle: "automatic",
         teamID: ENV["APPLE_TEAM_ID"]
       }
     )
