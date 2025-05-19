@@ -113,29 +113,24 @@ jobs:
       - run:
           name: Install CocoaPods with Performance Optimizations
           command: |
-            # Create a temporary file with the optimizations
-            cat > /tmp/podfile_optimizations.rb << 'EOL'
-            # Performance optimizations
-            post_install do |installer|
-              installer.pods_project.targets.each do |target|
-                target.build_configurations.each do |config|
-                  config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
-                  config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].push 'FB_SONARKIT_ENABLED=0'
-                  config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
-                  
-                  # Speed up build time
-                  config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'
-                  
-                  # Recommended flags for performance
-                  config.build_settings['COMPILER_INDEX_STORE_ENABLE'] = 'NO'
-                  config.build_settings['ENABLE_BITCODE'] = 'NO'
-                end
-              end
-            end
-            EOL
-            
-            # Append the optimizations to the Podfile
-            cat /tmp/podfile_optimizations.rb >> ios/Podfile
+            # Add performance optimizations to Podfile using individual echo statements
+            echo "# Performance optimizations" >> ios/Podfile
+            echo "post_install do |installer|" >> ios/Podfile
+            echo "  installer.pods_project.targets.each do |target|" >> ios/Podfile
+            echo "    target.build_configurations.each do |config|" >> ios/Podfile
+            echo "      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']" >> ios/Podfile
+            echo "      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].push 'FB_SONARKIT_ENABLED=0'" >> ios/Podfile
+            echo "      config.build_settings[\"EXCLUDED_ARCHS[sdk=iphonesimulator*]\"] = \"arm64\"" >> ios/Podfile
+            echo "" >> ios/Podfile
+            echo "      # Speed up build time" >> ios/Podfile
+            echo "      config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'" >> ios/Podfile
+            echo "" >> ios/Podfile
+            echo "      # Recommended flags for performance" >> ios/Podfile
+            echo "      config.build_settings['COMPILER_INDEX_STORE_ENABLE'] = 'NO'" >> ios/Podfile
+            echo "      config.build_settings['ENABLE_BITCODE'] = 'NO'" >> ios/Podfile
+            echo "    end" >> ios/Podfile
+            echo "  end" >> ios/Podfile
+            echo "end" >> ios/Podfile
             
             # Install pods
             cd ios && pod install --verbose
@@ -205,28 +200,25 @@ jobs:
       - run:
           name: Add Performance Optimizations to Gradle
           command: |
-            echo "Adding performance optimizations to gradle.properties..."
-            cat > /tmp/gradle_optimizations.txt << 'EOL'
-            
-            # Performance optimizations
-            org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
-            org.gradle.daemon=true
-            org.gradle.configureondemand=true
-            org.gradle.parallel=true
-            org.gradle.caching=true
-            android.enableR8.fullMode=true
-            android.enableJetifier=true
-            android.useAndroidX=true
-            android.disableAutomaticComponentCreation=true
-            
-            # Disable unused ABIs to speed up build
-            android.abi.filter=armeabi-v7a,arm64-v8a
-            
-            # Hermes optimizations
-            hermesEnabled=true
-            newArchEnabled=false
-            EOL
-            cat /tmp/gradle_optimizations.txt >> android/gradle.properties
+            # Add performance optimizations to gradle.properties using individual echo statements
+            echo "" >> android/gradle.properties
+            echo "# Performance optimizations" >> android/gradle.properties
+            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> android/gradle.properties
+            echo "org.gradle.daemon=true" >> android/gradle.properties
+            echo "org.gradle.configureondemand=true" >> android/gradle.properties
+            echo "org.gradle.parallel=true" >> android/gradle.properties
+            echo "org.gradle.caching=true" >> android/gradle.properties
+            echo "android.enableR8.fullMode=true" >> android/gradle.properties
+            echo "android.enableJetifier=true" >> android/gradle.properties
+            echo "android.useAndroidX=true" >> android/gradle.properties
+            echo "android.disableAutomaticComponentCreation=true" >> android/gradle.properties
+            echo "" >> android/gradle.properties
+            echo "# Disable unused ABIs to speed up build" >> android/gradle.properties
+            echo "android.abi.filter=armeabi-v7a,arm64-v8a" >> android/gradle.properties
+            echo "" >> android/gradle.properties
+            echo "# Hermes optimizations" >> android/gradle.properties
+            echo "hermesEnabled=true" >> android/gradle.properties
+            echo "newArchEnabled=false" >> android/gradle.properties
             
       - run:
           name: Setup Android Signing Keys
