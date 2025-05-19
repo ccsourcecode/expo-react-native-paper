@@ -109,6 +109,9 @@ jobs:
             bundle config set --local path 'vendor/bundle'
             bundle install
             
+            # Install specific OpenSSL version that works with App Store Connect API
+            gem install openssl -v 3.0.0
+            
             # Verify installation
             bundle exec fastlane --version
             bundle exec pod --version
@@ -144,15 +147,40 @@ jobs:
           when: always
 
       - run:
+          name: Setup App Store Connect API Key
+          command: |
+            # Create directory for API key
+            mkdir -p ~/.appstoreconnect/private_keys/
+            
+            # Decode the base64 encoded API key and save it to a file
+            echo "$ASC_KEY_CONTENT" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+            
+            # Verify the key was created
+            ls -la ~/.appstoreconnect/private_keys/
+            
+            # Modify the Fastfile to use file-based API key instead of key_content
+            if grep -q "key_content:" fastlane/Fastfile; then
+              echo "Updating Fastfile to use file-based API key..."
+              sed -i.bak "s|key_content: ENV\[\"ASC_KEY_CONTENT\"\]|key_filepath: ENV[\"ASC_KEY_FILEPATH\"]|g" fastlane/Fastfile
+              cat fastlane/Fastfile | grep -A 5 "app_store_connect_api_key"
+            fi
+          environment:
+            ASC_KEY_ID: ${ASC_KEY_ID}
+            ASC_KEY_CONTENT: ${ASC_KEY_CONTENT}
+            
+      - run:
           name: Deploy to TestFlight
           command: |
             # Use bundle exec for fastlane
             cd fastlane
+            
+            # Set environment variables for file-based API key
+            export ASC_KEY_FILEPATH=~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+            
             bundle exec fastlane ios beta
           environment:
             ASC_KEY_ID: ${ASC_KEY_ID}
             ASC_ISSUER_ID: ${ASC_ISSUER_ID}
-            ASC_KEY_CONTENT: ${ASC_KEY_CONTENT}
             APPLE_TEAM_ID: ${APPLE_TEAM_ID}
             
       - store_artifacts:
@@ -168,9 +196,13 @@ jobs:
     docker:
       - image: cimg/android:2023.09.1-node
     environment:
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'"
+      GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8' -Dorg.gradle.logging.level=lifecycle -Dorg.gradle.console=plain"
       # Performance optimizations
       DISABLE_FLIPPER: 1
+      # Limit to only arm64-v8a architecture to speed up build
+      ANDROID_ABI_FILTER: "arm64-v8a"
+      # Add more memory for Node
+      NODE_OPTIONS: "--max-old-space-size=4096"
       
     steps:
       - checkout
@@ -219,6 +251,9 @@ jobs:
             bundle config set --local path 'vendor/bundle'
             bundle install
             
+            # Install specific OpenSSL version that works with App Store Connect API
+            gem install openssl -v 3.0.0
+            
             # Verify installation
             bundle exec fastlane --version
             bundle exec pod --version
@@ -258,12 +293,21 @@ jobs:
             echo "android.useAndroidX=true" >> android/gradle.properties
             echo "" >> android/gradle.properties
             echo "# Disable unused ABIs to speed up build" >> android/gradle.properties
-            echo "android.abi.filter=armeabi-v7a,arm64-v8a" >> android/gradle.properties
+            echo "android.abi.filter=arm64-v8a" >> android/gradle.properties
             echo "" >> android/gradle.properties
             echo "# Hermes optimizations" >> android/gradle.properties
             echo "hermesEnabled=true" >> android/gradle.properties
             echo "newArchEnabled=false" >> android/gradle.properties
             
+            # Add progress output to gradle.properties
+            echo "# Add more console output" >> android/gradle.properties
+            echo "org.gradle.console=verbose" >> android/gradle.properties
+            
+            # Create a custom gradle.properties for the command line
+            echo "Creating custom gradle command-line options..."
+            mkdir -p ~/.gradle
+            echo "org.gradle.logging.level=info" > ~/.gradle/gradle.properties
+
       - run:
           name: Setup Android Signing Keys
           command: |
@@ -274,19 +318,43 @@ jobs:
       - run:
           name: Deploy to Play Store Beta
           command: |
-            # Use bundle exec for fastlane
+            # Set gem path for commands
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/bin:$PATH"
+            
+            # Set Ruby version explicitly for rbenv
+            rbenv global 3.3.0
+            
             cd fastlane
-            bundle exec fastlane android beta
+            # Add verbose output to prevent timeout
+            bundle exec fastlane android beta --verbose
           environment:
             ANDROID_KEYSTORE_FILE: ${ANDROID_KEYSTORE_FILE}
             ANDROID_KEYSTORE_PASSWORD: ${ANDROID_KEYSTORE_PASSWORD}
             ANDROID_KEY_ALIAS: ${ANDROID_KEY_ALIAS}
             ANDROID_KEY_PASSWORD: ${ANDROID_KEY_PASSWORD}
             GOOGLE_PLAY_JSON_KEY: ${GOOGLE_PLAY_JSON_KEY}
+          # Increase the timeout for long-running native builds
+          no_output_timeout: 30m
             
       - store_artifacts:
           path: android/app/build/outputs
           destination: android-build
+
+      - run:
+          name: Setup Android Build for CI
+          command: |
+            # Modify the Fastfile to add progress output to Gradle
+            if grep -q "gradle(" fastlane/Fastfile; then
+              echo "Updating Fastfile to add progress output to Gradle..."
+              sed -i.bak "s|gradle(|gradle(print_command: true, print_command_output: true, |g" fastlane/Fastfile
+              
+              # Also add --info flag to gradle command
+              sed -i.bak2 's|task: "clean|task: "clean --info --stacktrace|g' fastlane/Fastfile
+              
+              # Show the changes
+              cat fastlane/Fastfile | grep -A 5 "gradle("
+            fi
 
 workflows:
   version: 2
