@@ -26,7 +26,7 @@ jobs:
           name: Check Node Version
           command: node --version
       - node/install:
-          node-version: '22.15.0' //define your node version you're using
+          node-version: '22.15.0'
       - run:
           name: Install node modules
           command: npm i
@@ -95,7 +95,7 @@ jobs:
           name: Check Node Version
           command: node --version
       - node/install:
-          node-version: '22.15.0' //define your node_version you are using
+          node-version: '22.15.0'
       - run:
           name: Install node modules
           command: npm i
