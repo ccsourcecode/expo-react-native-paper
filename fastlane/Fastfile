@@ -207,6 +207,12 @@ platform :android do
       "hermesEnabled" => "true"
     }
     
+    # Print debug info
+    UI.message("ANDROID_KEYSTORE_PATH: #{ENV['ANDROID_KEYSTORE_PATH']}")
+    UI.message("ANDROID_KEYSTORE_PASSWORD is set: #{!ENV['ANDROID_KEYSTORE_PASSWORD'].nil?}")
+    UI.message("ANDROID_KEY_ALIAS is set: #{!ENV['ANDROID_KEY_ALIAS'].nil?}")
+    UI.message("ANDROID_KEY_PASSWORD is set: #{!ENV['ANDROID_KEY_PASSWORD'].nil?}")
+    
     # Build Android App Bundle with performance optimizations
     gradle(
       task: "bundle",
@@ -216,7 +222,7 @@ platform :android do
         "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"] || ENV["ANDROID_KEYSTORE_FILE"],
         "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
         "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
-        "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
+        "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"]
       }.merge(gradle_properties)
     )
     

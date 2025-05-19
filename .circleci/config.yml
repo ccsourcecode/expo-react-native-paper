@@ -139,6 +139,7 @@ jobs:
             # Verify keystore file was created
             if [ -f "android/app/release.keystore" ]; then
               echo "Keystore file created successfully"
+              ls -la android/app/release.keystore
             else
               echo "Failed to create keystore file"
               exit 1
@@ -183,13 +184,13 @@ jobs:
             export FASTLANE_OPT_OUT_USAGE=1
             export FASTLANE_SKIP_UI=1
             
+            # Set explicit path to keystore file (absolute path)
+            export ANDROID_KEYSTORE_PATH=$(pwd)/android/app/release.keystore
+            echo "Using keystore at: $ANDROID_KEYSTORE_PATH"
+            ls -la $ANDROID_KEYSTORE_PATH
+            
             # Run fastlane from the root directory where Fastfile is located
             bundle exec fastlane android deploy_to_production --verbose
-          environment:
-            ANDROID_KEYSTORE_PATH: ~/repo/android/app/release.keystore
-            ANDROID_KEYSTORE_PASSWORD: ${ANDROID_KEYSTORE_PASSWORD}
-            ANDROID_KEY_ALIAS: ${ANDROID_KEY_ALIAS}
-            ANDROID_KEY_PASSWORD: ${ANDROID_KEY_PASSWORD}
           no_output_timeout: 30m
 
 workflows:
