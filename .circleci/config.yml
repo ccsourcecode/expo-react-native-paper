@@ -19,7 +19,7 @@ jobs:
 
   build-ios:
     macos:
-      xcode: "16.4"
+      xcode: "15.5"
     steps:
       - checkout
       - run:
