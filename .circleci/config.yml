@@ -113,16 +113,14 @@ jobs:
       - run:
           name: Install CocoaPods with Performance Optimizations
           command: |
-            # Add performance optimizations to Podfile
-            echo "Adding performance optimizations to Podfile..."
-            cat >> ios/Podfile \<< 'EOL'
-
+            # Create a temporary file with the optimizations
+            cat > /tmp/podfile_optimizations.rb << 'EOL'
             # Performance optimizations
             post_install do |installer|
               installer.pods_project.targets.each do |target|
                 target.build_configurations.each do |config|
                   config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
-                  config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FB_SONARKIT_ENABLED=0'
+                  config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].push 'FB_SONARKIT_ENABLED=0'
                   config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
                   
                   # Speed up build time
@@ -136,6 +134,10 @@ jobs:
             end
             EOL
             
+            # Append the optimizations to the Podfile
+            cat /tmp/podfile_optimizations.rb >> ios/Podfile
+            
+            # Install pods
             cd ios && pod install --verbose
           working_directory: .
 
@@ -204,7 +206,7 @@ jobs:
           name: Add Performance Optimizations to Gradle
           command: |
             echo "Adding performance optimizations to gradle.properties..."
-            cat >> android/gradle.properties \<< 'EOL'
+            cat > /tmp/gradle_optimizations.txt << 'EOL'
             
             # Performance optimizations
             org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
@@ -224,6 +226,7 @@ jobs:
             hermesEnabled=true
             newArchEnabled=false
             EOL
+            cat /tmp/gradle_optimizations.txt >> android/gradle.properties
             
       - run:
           name: Setup Android Signing Keys
