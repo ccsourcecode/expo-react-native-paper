@@ -130,24 +130,65 @@ jobs:
             export GEM_HOME="$HOME/.gem"
             export PATH="$GEM_HOME/bin:$PATH"
             
-            # Add performance optimizations to Podfile using individual echo statements
-            echo "# Performance optimizations" >> ios/Podfile
-            echo "post_install do |installer|" >> ios/Podfile
-            echo "  installer.pods_project.targets.each do |target|" >> ios/Podfile
-            echo "    target.build_configurations.each do |config|" >> ios/Podfile
-            echo "      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']" >> ios/Podfile
-            echo "      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].push 'FB_SONARKIT_ENABLED=0'" >> ios/Podfile
-            echo "      config.build_settings[\"EXCLUDED_ARCHS[sdk=iphonesimulator*]\"] = \"arm64\"" >> ios/Podfile
-            echo "" >> ios/Podfile
-            echo "      # Speed up build time" >> ios/Podfile
-            echo "      config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'" >> ios/Podfile
-            echo "" >> ios/Podfile
-            echo "      # Recommended flags for performance" >> ios/Podfile
-            echo "      config.build_settings['COMPILER_INDEX_STORE_ENABLE'] = 'NO'" >> ios/Podfile
-            echo "      config.build_settings['ENABLE_BITCODE'] = 'NO'" >> ios/Podfile
-            echo "    end" >> ios/Podfile
-            echo "  end" >> ios/Podfile
-            echo "end" >> ios/Podfile
+            # Check if Podfile already has a post_install hook
+            if grep -q "post_install" ios/Podfile; then
+              # Modify existing post_install hook instead of adding a new one
+              echo "Modifying existing post_install hook..."
+              
+              # Create a backup of the original Podfile
+              cp ios/Podfile ios/Podfile.bak
+              
+              # Use awk to modify the existing post_install hook
+              awk '
+              /post_install do \|installer\|/ {
+                print;
+                inside_post_install = 1;
+                next;
+              }
+              /end$/ && inside_post_install {
+                # Before the end of post_install, add our optimizations if not already there
+                if (!added_optimizations) {
+                  print "    installer.pods_project.targets.each do |target|";
+                  print "      target.build_configurations.each do |config|";
+                  print "        config.build_settings[\"GCC_PREPROCESSOR_DEFINITIONS\"] ||= [\"$(inherited)\"]";
+                  print "        if config.build_settings[\"GCC_PREPROCESSOR_DEFINITIONS\"].is_a?(Array) && !config.build_settings[\"GCC_PREPROCESSOR_DEFINITIONS\"].include?(\"FB_SONARKIT_ENABLED=0\")";
+                  print "          config.build_settings[\"GCC_PREPROCESSOR_DEFINITIONS\"].push \"FB_SONARKIT_ENABLED=0\"";
+                  print "        end";
+                  print "        config.build_settings[\"EXCLUDED_ARCHS[sdk=iphonesimulator*]\"] = \"arm64\"";
+                  print "        # Speed up build time";
+                  print "        config.build_settings[\"SWIFT_COMPILATION_MODE\"] = \"wholemodule\"";
+                  print "        # Recommended flags for performance";
+                  print "        config.build_settings[\"COMPILER_INDEX_STORE_ENABLE\"] = \"NO\"";
+                  print "        config.build_settings[\"ENABLE_BITCODE\"] = \"NO\"";
+                  print "      end";
+                  added_optimizations = 1;
+                }
+                inside_post_install = 0;
+                print;
+                next;
+              }
+              {print}
+              ' ios/Podfile.bak > ios/Podfile.new && mv ios/Podfile.new ios/Podfile
+            else
+              # Add performance optimizations to Podfile using individual echo statements
+              echo "# Performance optimizations" >> ios/Podfile
+              echo "post_install do |installer|" >> ios/Podfile
+              echo "  installer.pods_project.targets.each do |target|" >> ios/Podfile
+              echo "    target.build_configurations.each do |config|" >> ios/Podfile
+              echo "      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']" >> ios/Podfile
+              echo "      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].push 'FB_SONARKIT_ENABLED=0'" >> ios/Podfile
+              echo "      config.build_settings[\"EXCLUDED_ARCHS[sdk=iphonesimulator*]\"] = \"arm64\"" >> ios/Podfile
+              echo "" >> ios/Podfile
+              echo "      # Speed up build time" >> ios/Podfile
+              echo "      config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'" >> ios/Podfile
+              echo "" >> ios/Podfile
+              echo "      # Recommended flags for performance" >> ios/Podfile
+              echo "      config.build_settings['COMPILER_INDEX_STORE_ENABLE'] = 'NO'" >> ios/Podfile
+              echo "      config.build_settings['ENABLE_BITCODE'] = 'NO'" >> ios/Podfile
+              echo "    end" >> ios/Podfile
+              echo "  end" >> ios/Podfile
+              echo "end" >> ios/Podfile
+            fi
             
             # Install pods
             cd ios && pod install --verbose
@@ -229,6 +270,9 @@ jobs:
       - run:
           name: Add Performance Optimizations to Gradle
           command: |
+            # Remove deprecated option from gradle.properties
+            sed -i '/android.disableAutomaticComponentCreation/d' android/gradle.properties
+            
             # Add performance optimizations to gradle.properties using individual echo statements
             echo "" >> android/gradle.properties
             echo "# Performance optimizations" >> android/gradle.properties
@@ -240,7 +284,6 @@ jobs:
             echo "android.enableR8.fullMode=true" >> android/gradle.properties
             echo "android.enableJetifier=true" >> android/gradle.properties
             echo "android.useAndroidX=true" >> android/gradle.properties
-            echo "android.disableAutomaticComponentCreation=true" >> android/gradle.properties
             echo "" >> android/gradle.properties
             echo "# Disable unused ABIs to speed up build" >> android/gradle.properties
             echo "android.abi.filter=armeabi-v7a,arm64-v8a" >> android/gradle.properties
