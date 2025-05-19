@@ -27,6 +27,7 @@ jobs:
       FASTLANE_HIDE_CHANGELOG: "true"
       FASTLANE_DISABLE_COLORS: "true"
       FASTLANE_SKIP_ACTION_SUMMARY: "true"
+      IPHONEOS_DEPLOYMENT_TARGET: "14.0"  # Match Podfile iOS target
     steps:
       - checkout
       - run:
@@ -224,20 +225,9 @@ jobs:
       - run:
           name: Setup Android Keystore
           command: |
-            # Create directory for keystore
-            mkdir -p android/app
-            
-            # Create keystore file from environment variable
-            echo $ANDROID_KEYSTORE_BASE64 | base64 -d > android/app/release.keystore
-            
-            # Verify keystore file was created
-            if [ -f "android/app/release.keystore" ]; then
-              echo "Keystore file created successfully"
-              ls -la android/app/release.keystore
-            else
-              echo "Failed to create keystore file"
-              exit 1
-            fi
+            # Make setup script executable and run it
+            chmod +x ./setup-keystore.sh
+            ./setup-keystore.sh
       - run:
           name: Install Java 17
           command: |

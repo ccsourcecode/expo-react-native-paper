@@ -110,7 +110,7 @@ platform :ios do
       export_method: "development", # Use development method for CI
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
       output_name: "exporeactnativepaper-dev.ipa",
-      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=12.0",
+      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=14.0",
       include_symbols: false,
       include_bitcode: false,
       silent: false, # Show more build output
@@ -144,7 +144,7 @@ platform :ios do
       export_method: "app-store",
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
       output_name: "exporeactnativepaper.ipa",
-      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=12.0", 
+      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=14.0", 
       clean: true,
       include_bitcode: false,
       silent: false, # Show more build output
