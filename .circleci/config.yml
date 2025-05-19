@@ -130,42 +130,65 @@ jobs:
             export GEM_HOME="$HOME/.gem"
             export PATH="$GEM_HOME/bin:$PATH"
             
-            # Create a backup of the original Podfile
-            cp ios/Podfile ios/Podfile.bak
+            # First, check the structure of the current Podfile
+            echo "Examining Podfile structure..."
+            cat ios/Podfile
             
-            # Remove any existing post_install hooks and add our optimized one
-            # First, get content before any post_install
-            sed -n '1,/post_install do |installer|/p' ios/Podfile.bak | sed '/post_install do |installer|/d' > ios/Podfile.new
+            # Create a completely new Podfile with our optimizations
+            echo "Creating a new optimized Podfile..."
             
-            # Add our optimized post_install hook - using echo statements instead of heredoc
-            echo '# Performance optimizations' >> ios/Podfile.new
-            echo 'post_install do |installer|' >> ios/Podfile.new
-            echo '  installer.pods_project.targets.each do |target|' >> ios/Podfile.new
-            echo '    target.build_configurations.each do |config|' >> ios/Podfile.new
-            echo '      config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] ||= ["$(inherited)"]' >> ios/Podfile.new
-            echo '      config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"].push "FB_SONARKIT_ENABLED=0"' >> ios/Podfile.new
-            echo '      config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"' >> ios/Podfile.new
-            echo '' >> ios/Podfile.new
-            echo '      # Speed up build time' >> ios/Podfile.new
-            echo '      config.build_settings["SWIFT_COMPILATION_MODE"] = "wholemodule"' >> ios/Podfile.new
-            echo '' >> ios/Podfile.new
-            echo '      # Recommended flags for performance' >> ios/Podfile.new
-            echo '      config.build_settings["COMPILER_INDEX_STORE_ENABLE"] = "NO"' >> ios/Podfile.new
-            echo '      config.build_settings["ENABLE_BITCODE"] = "NO"' >> ios/Podfile.new
-            echo '    end' >> ios/Podfile.new
-            echo '  end' >> ios/Podfile.new
+            # Create a temporary file for our modifications
+            cat > /tmp/podfile_optimizations.rb << 'EOL'
+# Add this to the existing post_install hook
+def apply_performance_optimizations(installer)
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+      # Use push instead of << to avoid YAML parsing issues
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].push 'FB_SONARKIT_ENABLED=0'
+      config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
 
-            # Find the original React Native post-install code and append it
-            if grep -q "flipper_post_install" ios/Podfile.bak; then
-              echo '  # Flipper post-install code from React Native template' >> ios/Podfile.new
-              sed -n '/flipper_post_install/,/end/p' ios/Podfile.bak >> ios/Podfile.new
-            fi
+      # Speed up build time
+      config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'
+
+      # Recommended flags for performance
+      config.build_settings['COMPILER_INDEX_STORE_ENABLE'] = 'NO'
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+    end
+  end
+end
+EOL
             
-            # Close the post_install block
-            echo 'end' >> ios/Podfile.new
+            # Use Ruby to safely modify the Podfile
+            ruby -e '
+              # Read the original Podfile
+              podfile_content = File.read("ios/Podfile")
+              
+              # Read our optimizations
+              optimizations = File.read("/tmp/podfile_optimizations.rb")
+              
+              # Add our optimizations function at the top
+              modified_content = optimizations + "\n\n" + podfile_content
+              
+              # Check if there is a post_install hook
+              if modified_content.include?("post_install do |installer|")
+                # Add our call to the existing post_install hook
+                modified_content = modified_content.gsub(
+                  /post_install do \|installer\|/,
+                  "post_install do |installer|\n  apply_performance_optimizations(installer)"
+                )
+              else
+                # Add a new post_install hook at the end
+                modified_content += "\n\npost_install do |installer|\n  apply_performance_optimizations(installer)\nend\n"
+              end
+              
+              # Write the modified Podfile
+              File.write("ios/Podfile", modified_content)
+            '
             
-            # Replace the original Podfile
-            mv ios/Podfile.new ios/Podfile
+            # Check the modified Podfile
+            echo "Checking the modified Podfile..."
+            cat ios/Podfile
             
             # Install pods
             cd ios && pod install --verbose
