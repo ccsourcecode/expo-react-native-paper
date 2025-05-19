@@ -20,7 +20,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "ExpoLocalization_supportsRTL": true
-      }
+      },
+      "bundleIdentifier": "com.mymail.exporeactnativepaper"
     },
     "android": {
       "adaptiveIcon": {
