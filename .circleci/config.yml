@@ -1,406 +1,117 @@
 version: 2.1
 
 orbs:
-  node: circleci/node@5.1.0
-  macos: circleci/macos@2.0.0
+  node: circleci/node@5
 
 jobs:
-  react-native-test:
-    docker:
-      - image: cimg/node:20.10
+  test-node:
+    executor: node/default
     environment:
-      CI: true
-      # Performance optimizations for Jest
-      JEST_WORKER_ID: 1
-      NODE_OPTIONS: "--max-old-space-size=4096"
-
+      JEST_JUNIT_OUTPUT_DIR: ./test-results/
     steps:
       - checkout
+      - node/install-packages:
+          pkg-manager: npm
+      - run:
+          command: npm install jest-junit --ignore-workspace-root-check
+      - store_test_results:
+          path: ./test-results/
 
-      - restore_cache:
-          keys:
-            - npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
-            - npm-v1-{{ arch }}
-
-      - restore_cache:
-          keys:
-            - node-modules-v1-{{ checksum "package.json" }}-{{ arch }}
-            - node-modules-v1-{{ arch }}
-
-      - run: npm install
-      - run: npm test -- --maxWorkers=2
-      - run: npm run tsc
-
-      - save_cache:
-          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
-          paths:
-            - ~/.npm
-          when: always
-
-      - save_cache:
-          key: node-modules-v1-{{ checksum "package.json" }}-{{ arch }}
-          paths:
-            - node_modules
-          when: always
-
-  macos-build-and-deploy:
+  build-ios:
     macos:
-      xcode: 15.4.0
-    environment:
-      FL_OUTPUT_DIR: output
-      FASTLANE_LANE: beta
-      # Performance optimizations
-      DISABLE_FLIPPER: 1
-      # These environment variables should be set in CircleCI project settings:
-      # ASC_KEY_ID: App Store Connect API Key ID
-      # ASC_ISSUER_ID: App Store Connect API Issuer ID
-      # ASC_KEY_CONTENT: App Store Connect API Key Content (base64 encoded)
-      # APPLE_TEAM_ID: Your Apple Developer Team ID
-      # For Android builds:
-      # ANDROID_KEYSTORE_FILE: Path to your keystore file
-      # ANDROID_KEYSTORE_PASSWORD: Your keystore password
-      # ANDROID_KEY_ALIAS: Your key alias
-      # ANDROID_KEY_PASSWORD: Your key password
-      # GOOGLE_PLAY_JSON_KEY: Path to your Google Play JSON key file
-
+      xcode: "your_xcode_version"
     steps:
       - checkout
-      
-      - macos/switch-ruby:
-          version: "3.1.3"
-      
-      - restore_cache:
-          keys:
-            - npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
-            - npm-v1-{{ arch }}
-
-      - restore_cache:
-          keys:
-            - node-modules-v1-{{ checksum "package.json" }}-{{ arch }}
-            - node-modules-v1-{{ arch }}
-
-      - run: npm install
-
-      - save_cache:
-          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
-          paths:
-            - ~/.npm
-          when: always
-
-      - save_cache:
-          key: node-modules-v1-{{ checksum "package.json" }}-{{ arch }}
-          paths:
-            - node_modules
-          when: always
-
       - run:
-          name: Install Ruby Dependencies
+          name: Check Node Version
+          command: node --version
+      - node/install:
+          node-version: '16.17.0' //define your node version you're using
+      - run:
+          name: Install node modules
+          command: npm i
+      - run:
+          name: Install Ruby 2.7.4
           command: |
-            # Check Ruby version after setting with orb
-            ruby --version
-            
-            # Install bundler first
-            gem install bundler --user-install
-            
-            # Create a Gemfile if it doesn't exist
-            if [ ! -f Gemfile ]; then
-              echo "source 'https://rubygems.org'" > Gemfile
-              echo "gem 'fastlane'" >> Gemfile
-              echo "gem 'cocoapods'" >> Gemfile
-              echo "gem 'jwt'" >> Gemfile
-            fi
-            
-            # Install gems via bundler
-            bundle config set --local path 'vendor/bundle'
-            bundle install
-            
-            # Skip OpenSSL installation as it's causing permission issues
-            # We'll rely on the system OpenSSL instead
-            
-            # Verify installation
-            bundle exec fastlane --version
-            bundle exec pod --version
-          working_directory: .
-
+            brew install rbenv
+            rbenv install 2.7.4
+            rbenv global 2.7.4
+            rbenv rehash
+            ruby -v
       - run:
-          name: Setup iOS Signing Configuration
-          command: |
-            # Remove rbenv references
-            chmod +x fastlane/setup-ios-signing.sh
-            ./fastlane/setup-ios-signing.sh
-            
+          name: Install Bundler 2.2.4
+          command: gem install bundler -v 2.2.4
       - run:
-          name: Generate Native Code from Expo
-          command: npx expo prebuild --clean
-
-      - restore_cache:
-          keys:
-            - pods-v1-{{ checksum "ios/Podfile.lock" }}-{{ arch }}
-            - pods-v1-{{ arch }}
-
+          name: Install Fastlane
+          command: gem install fastlane -v '>= 2.0.0'
       - run:
-          name: Install CocoaPods with Performance Optimizations
-          command: |
-            # Install pods using bundler
-            cd ios && bundle exec pod install --verbose
-          working_directory: .
-
-      - save_cache:
-          key: pods-v1-{{ checksum "ios/Podfile.lock" }}-{{ arch }}
-          paths:
-            - ios/Pods
-          when: always
-
+          name: Bundle install
+          command: bundle install
+          working_directory: ios
       - run:
-          name: Setup App Store Connect API Key
-          command: |
-            # Create directory for API key
-            mkdir -p ~/.appstoreconnect/private_keys/
-            
-            # Check if ASC_KEY_CONTENT is already a valid PEM file or needs decoding
-            if [[ "$ASC_KEY_CONTENT" == -----BEGIN* ]]; then
-              echo "API key appears to be in PEM format already, saving directly..."
-              echo "$ASC_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
-            else
-              echo "Attempting to decode base64 API key..."
-              # Try decoding with -d flag (GNU base64)
-              if echo "$ASC_KEY_CONTENT" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8 2>/dev/null; then
-                echo "Successfully decoded with base64 -d"
-              else
-                # Try decoding with --decode flag (alternative syntax)
-                if echo "$ASC_KEY_CONTENT" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8 2>/dev/null; then
-                  echo "Successfully decoded with base64 --decode"
-                else
-                  # If both fail, just save as-is
-                  echo "Decoding failed, saving content as-is..."
-                  echo "$ASC_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
-                fi
-              fi
-            fi
-            
-            # Check if the file was created and has content
-            if [ -s ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8 ]; then
-              echo "API key file created successfully"
-              # Show first line (without revealing the actual key)
-              head -n 1 ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
-            else
-              echo "API key file is empty or not created"
-              exit 1
-            fi
-            
-            # Modify the Fastfile to use file-based API key instead of key_content
-            if grep -q "key_content:" fastlane/Fastfile; then
-              echo "Updating Fastfile to use file-based API key..."
-              sed -i.bak "s|key_content: ENV\[\"ASC_KEY_CONTENT\"\]|key_filepath: ENV[\"ASC_KEY_FILEPATH\"]|g" fastlane/Fastfile
-              cat fastlane/Fastfile | grep -A 5 "app_store_connect_api_key"
-            fi
-          environment:
-            ASC_KEY_ID: ${ASC_KEY_ID}
-            ASC_KEY_CONTENT: ${ASC_KEY_CONTENT}
-            
-      - run:
-          name: Deploy to TestFlight
-          command: |
-            # Use bundle exec for fastlane
-            cd fastlane
-            
-            # Set environment variables for file-based API key
-            export ASC_KEY_FILEPATH=~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
-            
-            bundle exec fastlane ios beta
-          environment:
-            ASC_KEY_ID: ${ASC_KEY_ID}
-            ASC_ISSUER_ID: ${ASC_ISSUER_ID}
-            APPLE_TEAM_ID: ${APPLE_TEAM_ID}
-            
-      - store_artifacts:
-          path: output
-          destination: ios-build
-          
-      # Optional: Store the .ipa file separately for easy access
-      - store_artifacts:
-          path: ~/Library/Developer/Xcode/Archives
-          destination: ios-archives
+          name: Run tests and upload to TestFlight
+          command: bundle exec fastlane uploadtestflight
+          working_directory: ios
 
-  android-build-and-deploy:
+  build-ruby:
     docker:
-      - image: cimg/android:2023.09.1-node
-    environment:
-      GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8' -Dorg.gradle.logging.level=lifecycle -Dorg.gradle.console=plain"
-      # Performance optimizations
-      DISABLE_FLIPPER: 1
-      # Limit to only arm64-v8a architecture to speed up build
-      ANDROID_ABI_FILTER: "arm64-v8a"
-      # Add more memory for Node
-      NODE_OPTIONS: "--max-old-space-size=4096"
-      
+      - image: circleci/ruby:2.7.4
     steps:
       - checkout
-      
-      - restore_cache:
-          keys:
-            - npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
-            - npm-v1-{{ arch }}
-
-      - restore_cache:
-          keys:
-            - node-modules-v1-{{ checksum "package.json" }}-{{ arch }}
-            - node-modules-v1-{{ arch }}
-
-      - run: npm install
-
-      - save_cache:
-          key: npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
-          paths:
-            - ~/.npm
-          when: always
-
-      - save_cache:
-          key: node-modules-v1-{{ checksum "package.json" }}-{{ arch }}
-          paths:
-            - node_modules
-          when: always
-          
       - run:
-          name: Install Ruby Dependencies
+          name: Install Bundler
+          command: gem install bundler -v 2.4.22
+      - run:
+          name: Install Fastlane Gem
+          command: gem install fastlane -v '>= 2.0.0'
+      - run:
+          name: Install Fastlane
+          command: bundle install
+
+  build-android:
+    docker:
+      - image: cimg/android:2024.01
+        environment:
+          BUNDLE_PATH: vendor/bundle
+          JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: Decrypt Keystore File
+          command: openssl aes-256-cbc -d -in android/app/release.keystore.enc -out android/app/release.keystore -k ENCRYPTION_KEY
+      - run:
+          name: Install Java 11
+          command: sudo apt-get update && sudo apt-get install -y openjdk-11-jdk
+      - run:
+          name: Set JAVA_HOME
+          command: echo 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64' >> $BASH_ENV
+      - run:
+          name: Install Node.js
           command: |
-            # Check Ruby version
-            ruby --version
-            
-            # Install bundler first
-            gem install bundler --user-install
-            
-            # Create a Gemfile if it doesn't exist
-            if [ ! -f Gemfile ]; then
-              echo "source 'https://rubygems.org'" > Gemfile
-              echo "gem 'fastlane'" >> Gemfile
-              echo "gem 'cocoapods'" >> Gemfile
-              echo "gem 'jwt'" >> Gemfile
-            fi
-            
-            # Install gems via bundler
-            bundle config set --local path 'vendor/bundle'
-            bundle install
-            
-            # Skip OpenSSL installation as it's causing permission issues
-            # We'll rely on the system OpenSSL instead
-            
-            # Verify installation
-            bundle exec fastlane --version
-            bundle exec pod --version
-          working_directory: .
+            curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      - run:
+          name: Check Node Version
+          command: node --version
+      - node/install:
+          node-version: '16.17.0' //define your node_version you are using
+      - run:
+          name: Install node modules
+          command: npm i
+      - run:
+          name: Chmod permissions
+          command: sudo chmod +x ./gradlew
+          working_directory: android
+      - run:
+          name: Run tests and upload to Play Store
+          command: fastlane deploy_to_production
+          working_directory: android
 
-      - run:
-          name: Install Ninja and CMake Dependencies
-          command: |
-            # Install Ninja build system
-            sudo apt-get update
-            sudo apt-get install -y ninja-build cmake
-            
-            # Verify installation
-            ninja --version
-            cmake --version
-
-      - run:
-          name: Generate Native Code from Expo
-          command: npx expo prebuild --clean
-          
-      - run:
-          name: Add Performance Optimizations to Gradle
-          command: |
-            # Remove deprecated option from gradle.properties
-            sed -i '/android.disableAutomaticComponentCreation/d' android/gradle.properties
-            
-            # Add performance optimizations to gradle.properties using individual echo statements
-            echo "" >> android/gradle.properties
-            echo "# Performance optimizations" >> android/gradle.properties
-            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> android/gradle.properties
-            echo "org.gradle.daemon=true" >> android/gradle.properties
-            echo "org.gradle.configureondemand=true" >> android/gradle.properties
-            echo "org.gradle.parallel=true" >> android/gradle.properties
-            echo "org.gradle.caching=true" >> android/gradle.properties
-            echo "android.enableR8.fullMode=true" >> android/gradle.properties
-            echo "android.enableJetifier=true" >> android/gradle.properties
-            echo "android.useAndroidX=true" >> android/gradle.properties
-            echo "" >> android/gradle.properties
-            echo "# Disable unused ABIs to speed up build" >> android/gradle.properties
-            echo "android.abi.filter=arm64-v8a" >> android/gradle.properties
-            echo "" >> android/gradle.properties
-            echo "# Hermes optimizations" >> android/gradle.properties
-            echo "hermesEnabled=true" >> android/gradle.properties
-            echo "newArchEnabled=false" >> android/gradle.properties
-            
-            # Add progress output to gradle.properties
-            echo "# Add more console output" >> android/gradle.properties
-            echo "org.gradle.console=verbose" >> android/gradle.properties
-            
-            # Create a custom gradle.properties for the command line
-            echo "Creating custom gradle command-line options..."
-            mkdir -p ~/.gradle
-            echo "org.gradle.logging.level=info" > ~/.gradle/gradle.properties
-
-      - run:
-          name: Setup Android Signing Keys
-          command: |
-            # Remove rbenv references
-            chmod +x fastlane/setup-android-keys.sh
-            ./fastlane/setup-android-keys.sh
-            
-      - run:
-          name: Deploy to Play Store Beta
-          command: |
-            # Set gem path for commands
-            export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/bin:$PATH"
-            
-            # Use system Ruby version instead of rbenv
-            ruby --version
-            
-            cd fastlane
-            # Add verbose output to prevent timeout
-            bundle exec fastlane android beta --verbose
-          environment:
-            ANDROID_KEYSTORE_FILE: ${ANDROID_KEYSTORE_FILE}
-            ANDROID_KEYSTORE_PASSWORD: ${ANDROID_KEYSTORE_PASSWORD}
-            ANDROID_KEY_ALIAS: ${ANDROID_KEY_ALIAS}
-            ANDROID_KEY_PASSWORD: ${ANDROID_KEY_PASSWORD}
-            GOOGLE_PLAY_JSON_KEY: ${GOOGLE_PLAY_JSON_KEY}
-          # Increase the timeout for long-running native builds
-          no_output_timeout: 30m
-            
-      - store_artifacts:
-          path: android/app/build/outputs
-          destination: android-build
-
-      - run:
-          name: Setup Android Build for CI
-          command: |
-            # Modify the Fastfile to add progress output to Gradle
-            if grep -q "gradle(" fastlane/Fastfile; then
-              echo "Updating Fastfile to add progress output to Gradle..."
-              sed -i.bak "s|gradle(|gradle(print_command: true, print_command_output: true, |g" fastlane/Fastfile
-              
-              # Also add --info flag to gradle command
-              sed -i.bak2 's|task: "clean|task: "clean --info --stacktrace|g' fastlane/Fastfile
-              
-              # Show the changes
-              cat fastlane/Fastfile | grep -A 5 "gradle("
-            fi
 
 workflows:
-  version: 2
-  test-build-deploy:
+  build-and-test:
     jobs:
-      - react-native-test
-      - macos-build-and-deploy:
-          requires:
-            - react-native-test
-          filters:
-            branches:
-              only: main
-      - android-build-and-deploy:
-          requires:
-            - react-native-test
-          filters:
-            branches:
-              only: main
+      - build-ios
+      - build-ruby
+      - build-android
