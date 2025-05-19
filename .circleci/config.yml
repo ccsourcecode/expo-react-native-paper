@@ -21,6 +21,12 @@ jobs:
   build-ios:
     macos:
       xcode: "15.4.0"
+    environment:
+      FL_OUTPUT_DIR: output
+      FASTLANE_SKIP_UPDATE_CHECK: "true"
+      FASTLANE_HIDE_CHANGELOG: "true"
+      FASTLANE_DISABLE_COLORS: "true"
+      FASTLANE_SKIP_ACTION_SUMMARY: "true"
     steps:
       - checkout
       - run:
@@ -47,9 +53,18 @@ jobs:
           paths:
             - vendor/bundle
       - run:
+          name: List fastlane directory contents
+          command: ls -la fastlane/
+      - run:
           name: Run tests and upload to TestFlight
-          command: bundle exec fastlane ios uploadtestflight
-          working_directory: ios
+          command: |
+            # Set non-interactive mode explicitly
+            export FASTLANE_OPT_OUT_USAGE=1
+            export FASTLANE_SKIP_UI=1
+            
+            # Run fastlane from the root directory where Fastfile is located
+            bundle exec fastlane ios uploadtestflight --verbose
+          no_output_timeout: 30m
 
   build-ruby:
     docker:
@@ -76,6 +91,10 @@ jobs:
         environment:
           BUNDLE_PATH: vendor/bundle
           JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+          FASTLANE_SKIP_UPDATE_CHECK: "true"
+          FASTLANE_HIDE_CHANGELOG: "true"
+          FASTLANE_DISABLE_COLORS: "true"
+          FASTLANE_SKIP_ACTION_SUMMARY: "true"
     working_directory: ~/repo
     steps:
       - checkout
@@ -124,14 +143,23 @@ jobs:
           command: sudo chmod +x ./gradlew
           working_directory: android
       - run:
+          name: List fastlane directory contents
+          command: ls -la fastlane/
+      - run:
           name: Run tests and upload to Play Store
-          command: bundle exec fastlane android deploy_to_production
-          working_directory: android
+          command: |
+            # Set non-interactive mode explicitly
+            export FASTLANE_OPT_OUT_USAGE=1
+            export FASTLANE_SKIP_UI=1
+            
+            # Run fastlane from the root directory where Fastfile is located
+            bundle exec fastlane android deploy_to_production --verbose
           environment:
             ANDROID_KEYSTORE_PATH: ~/repo/android/app/release.keystore
             ANDROID_KEYSTORE_PASSWORD: ${ANDROID_KEYSTORE_PASSWORD}
             ANDROID_KEY_ALIAS: ${ANDROID_KEY_ALIAS}
             ANDROID_KEY_PASSWORD: ${ANDROID_KEY_PASSWORD}
+          no_output_timeout: 30m
 
 workflows:
   build-and-test:

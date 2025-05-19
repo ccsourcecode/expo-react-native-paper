@@ -6,6 +6,10 @@ before_all do
   
   # Performance optimization - disable Flipper for production builds
   ENV["DISABLE_FLIPPER"] = "1" if ENV["FASTLANE_LANE"] == "beta" || ENV["FASTLANE_LANE"] == "release"
+  
+  # Opt out of interactive mode for CI
+  ENV["FASTLANE_OPT_OUT_USAGE"] = "1"
+  ENV["FASTLANE_SKIP_UI"] = "1"
 end
 
 platform :ios do
@@ -15,7 +19,8 @@ platform :ios do
     app_store_connect_api_key(
       key_id: ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_KEY_CONTENT"],
+      key_filepath: ENV["ASC_KEY_FILEPATH"] || nil,
+      key_content: ENV["ASC_KEY_CONTENT"] || nil,
       in_house: false # Set to true if enterprise account
     )
     
@@ -70,6 +75,11 @@ platform :ios do
       skip_waiting_for_build_processing: true
     )
   end
+  
+  desc "Upload to TestFlight (for CircleCI)"
+  lane :uploadtestflight do
+    beta # Reuse the beta lane
+  end
 
   desc "Take screenshots for iOS (requires UI tests)"
   lane :screenshots do
@@ -103,7 +113,7 @@ platform :android do
       build_type: "Release",
       project_dir: "android/",
       properties: {
-        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_FILE"],
+        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"] || ENV["ANDROID_KEYSTORE_FILE"],
         "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
         "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
         "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
@@ -131,7 +141,7 @@ platform :android do
       build_type: "Release",
       project_dir: "android/",
       properties: {
-        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_FILE"],
+        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"] || ENV["ANDROID_KEYSTORE_FILE"],
         "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
         "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
         "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
@@ -142,6 +152,43 @@ platform :android do
     upload_to_play_store(
       track: 'internal',
       release_status: 'draft',
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      json_key: ENV["GOOGLE_PLAY_JSON_KEY"]
+    )
+  end
+  
+  desc "Deploy to production (for CircleCI)"
+  lane :deploy_to_production do
+    # Increment version code
+    increment_version_code(
+      gradle_file_path: "android/app/build.gradle"
+    )
+    
+    # Performance optimization - disable unused ABIs
+    gradle_properties = {
+      "android.abi.filter" => "armeabi-v7a,arm64-v8a",
+      "android.enableR8.fullMode" => "true",
+      "hermesEnabled" => "true"
+    }
+    
+    # Build Android App Bundle with performance optimizations
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      project_dir: "android/",
+      properties: {
+        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"] || ENV["ANDROID_KEYSTORE_FILE"],
+        "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
+      }.merge(gradle_properties)
+    )
+    
+    # Upload to Play Store
+    upload_to_play_store(
+      track: 'production', # Deploy to production track
       skip_upload_metadata: true,
       skip_upload_images: true,
       skip_upload_screenshots: true,
