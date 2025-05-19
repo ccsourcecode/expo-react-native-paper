@@ -137,34 +137,32 @@ jobs:
             # First, get content before any post_install
             sed -n '1,/post_install do |installer|/p' ios/Podfile.bak | sed '/post_install do |installer|/d' > ios/Podfile.new
             
-            # Add our optimized post_install hook
-            cat >> ios/Podfile.new << 'EOL'
-# Performance optimizations
-post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
-      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'].push 'FB_SONARKIT_ENABLED=0'
-      config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
-
-      # Speed up build time
-      config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'
-
-      # Recommended flags for performance
-      config.build_settings['COMPILER_INDEX_STORE_ENABLE'] = 'NO'
-      config.build_settings['ENABLE_BITCODE'] = 'NO'
-    end
-  end
-EOL
+            # Add our optimized post_install hook - using echo statements instead of heredoc
+            echo '# Performance optimizations' >> ios/Podfile.new
+            echo 'post_install do |installer|' >> ios/Podfile.new
+            echo '  installer.pods_project.targets.each do |target|' >> ios/Podfile.new
+            echo '    target.build_configurations.each do |config|' >> ios/Podfile.new
+            echo '      config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] ||= ["$(inherited)"]' >> ios/Podfile.new
+            echo '      config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"].push "FB_SONARKIT_ENABLED=0"' >> ios/Podfile.new
+            echo '      config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"' >> ios/Podfile.new
+            echo '' >> ios/Podfile.new
+            echo '      # Speed up build time' >> ios/Podfile.new
+            echo '      config.build_settings["SWIFT_COMPILATION_MODE"] = "wholemodule"' >> ios/Podfile.new
+            echo '' >> ios/Podfile.new
+            echo '      # Recommended flags for performance' >> ios/Podfile.new
+            echo '      config.build_settings["COMPILER_INDEX_STORE_ENABLE"] = "NO"' >> ios/Podfile.new
+            echo '      config.build_settings["ENABLE_BITCODE"] = "NO"' >> ios/Podfile.new
+            echo '    end' >> ios/Podfile.new
+            echo '  end' >> ios/Podfile.new
 
             # Find the original React Native post-install code and append it
             if grep -q "flipper_post_install" ios/Podfile.bak; then
-              echo "  # Flipper post-install code from React Native template" >> ios/Podfile.new
+              echo '  # Flipper post-install code from React Native template' >> ios/Podfile.new
               sed -n '/flipper_post_install/,/end/p' ios/Podfile.bak >> ios/Podfile.new
             fi
             
             # Close the post_install block
-            echo "end" >> ios/Podfile.new
+            echo 'end' >> ios/Podfile.new
             
             # Replace the original Podfile
             mv ios/Podfile.new ios/Podfile
