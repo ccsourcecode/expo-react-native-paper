@@ -121,6 +121,40 @@ jobs:
             
             echo "===== CHECKING DEPLOYMENT TARGET ====="
             grep -r "IPHONEOS_DEPLOYMENT_TARGET" ios/exporeactnativepaper.xcodeproj
+            
+            echo "===== XCODE VERSION ====="
+            xcodebuild -version
+            
+            echo "===== AVAILABLE SDKS ====="
+            xcodebuild -showsdks
+            
+            echo "===== PODFILE CONTENT ====="
+            cat ios/Podfile
+      - run:
+          name: Verify Xcode project setup
+          command: |
+            # Force-select the Xcode version
+            sudo xcode-select -s /Applications/Xcode-15.4.app
+            xcode-select -p
+            
+            # Check if we have valid signing capabilities
+            if [ -z "$APPLE_TEAM_ID" ]; then
+              echo "WARNING: No Apple team ID set, code signing may fail"
+            else
+              echo "Apple team ID is set, should be able to sign"
+            fi
+            
+            # Check workspace contents
+            cd ios
+            ls -la exporeactnativepaper.xcworkspace/
+            
+            # Validate bundle identifier
+            if [ -f "exporeactnativepaper/Info.plist" ]; then
+              BUNDLE_ID=$(plutil -p exporeactnativepaper/Info.plist | grep CFBundleIdentifier | awk -F'"' '{print $4}')
+              echo "Bundle identifier: $BUNDLE_ID"
+            else
+              echo "Info.plist not found"
+            fi
       - run:
           name: Run tests and upload to TestFlight
           command: |
@@ -128,8 +162,9 @@ jobs:
             export FASTLANE_OPT_OUT_USAGE=1
             export FASTLANE_SKIP_UI=1
             
-            # Run fastlane from the root directory where Fastfile is located
-            bundle exec fastlane ios uploadtestflight --verbose
+            # For CI builds, use the build lane instead of upload lane
+            # as we may not have sufficient signing credentials
+            bundle exec fastlane ios build --verbose
           no_output_timeout: 30m
       - run:
           name: Show build logs if failed

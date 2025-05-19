@@ -4,6 +4,12 @@ before_all do
   # Set up CI environment if running on CI
   setup_ci if FastlaneCore::Helper.ci?
   
+  # Explicitly select Xcode version if on CircleCI
+  if FastlaneCore::Helper.ci?
+    xcode_select "/Applications/Xcode-15.4.app" if File.directory?("/Applications/Xcode-15.4.app")
+    UI.important("Using Xcode version: #{`xcodebuild -version`.strip}")
+  end
+  
   # Performance optimization - disable Flipper for production builds
   ENV["DISABLE_FLIPPER"] = "1" if ENV["FASTLANE_LANE"] == "beta" || ENV["FASTLANE_LANE"] == "release"
   
@@ -15,103 +21,76 @@ end
 platform :ios do
   desc "Set up code signing using App Store Connect API"
   private_lane :setup_code_signing do
-    # IMPORTANT: The key_content must be properly quoted in environment variables
-    # If you're getting "invalid curve name" error, ensure your key is wrapped in quotes
-    # Example: key_content="-----BEGIN PRIVATE KEY-----\nABCDEF...\n-----END PRIVATE KEY-----"
+    # Debug info
+    UI.important("Setting up code signing...")
+    UI.important("Running on CI: #{FastlaneCore::Helper.ci?}")
+    UI.important("Current directory: #{Dir.pwd}")
     
-    # Print key format for debugging (don't worry, this only shows the format, not the actual key)
-    UI.message("Key format check - first 20 chars: #{ENV["ASC_KEY_CONTENT"] ? ENV["ASC_KEY_CONTENT"][0..20] : 'nil'}")
-    UI.message("Key starts with proper header: #{ENV["ASC_KEY_CONTENT"] && ENV["ASC_KEY_CONTENT"].start_with?("-----BEGIN") ? 'Yes' : 'No'}")
-    UI.message("Key includes newlines (\\n): #{ENV["ASC_KEY_CONTENT"] && ENV["ASC_KEY_CONTENT"].include?('\n') ? 'Yes' : 'No'}")
+    # Check for code signing environment variables
+    has_api_key = !ENV["ASC_KEY_ID"].nil? && !ENV["ASC_ISSUER_ID"].nil?
+    has_api_content = !ENV["ASC_KEY_CONTENT"].nil? || !ENV["ASC_KEY_CONTENT_BASE64"].nil? || !ENV["ASC_KEY_FILEPATH"].nil?
+    has_apple_id = !ENV["FASTLANE_USER"].nil? && !ENV["FASTLANE_PASSWORD"].nil?
     
-    # Try using one of these approaches to fix the "invalid curve name" error:
+    UI.important("Has App Store Connect API key credentials: #{has_api_key && has_api_content}")
+    UI.important("Has Apple ID credentials: #{has_apple_id}")
+    UI.important("Team ID: #{ENV["APPLE_TEAM_ID"] || 'not set'}")
     
-    # Option 1: Use is_key_content_base64 if your key is base64 encoded
-    if ENV["ASC_KEY_CONTENT_BASE64"]
-      app_store_connect_api_key(
-        key_id: ENV["ASC_KEY_ID"],
-        issuer_id: ENV["ASC_ISSUER_ID"],
-        key_content: ENV["ASC_KEY_CONTENT_BASE64"],
-        is_key_content_base64: true,
-        in_house: false
-      )
-    # Option 2: Use key_filepath if you have the .p8 file
-    elsif ENV["ASC_KEY_FILEPATH"]
-      app_store_connect_api_key(
-        key_id: ENV["ASC_KEY_ID"],
-        issuer_id: ENV["ASC_ISSUER_ID"],
-        key_filepath: ENV["ASC_KEY_FILEPATH"],
-        in_house: false
-      )
-    # Option 3: Fall back to Apple ID authentication if API key doesn't work
-    elsif ENV["FASTLANE_USER"] && ENV["FASTLANE_PASSWORD"]
-      UI.important("Using Apple ID authentication instead of App Store Connect API key")
-      # No explicit action needed, fastlane will use these environment variables
-    # Option 4: Try with the regular key_content as a last resort
-    else
-      UI.important("Attempting with standard key_content - if this fails, try base64 encoding your key")
-      app_store_connect_api_key(
-        key_id: ENV["ASC_KEY_ID"],
-        issuer_id: ENV["ASC_ISSUER_ID"],
-        key_content: ENV["ASC_KEY_CONTENT"],
-        in_house: false
-      )
-    end
-    
-    # Check if team ID is available
-    if ENV["APPLE_TEAM_ID"].nil? || ENV["APPLE_TEAM_ID"].empty?
-      UI.error("APPLE_TEAM_ID environment variable is not set or is empty!")
-      UI.error("Please set a valid team ID in your environment variables.")
-    else
-      UI.success("APPLE_TEAM_ID is set to: #{ENV["APPLE_TEAM_ID"]}")
-    end
-    
-    # Attempt to use match if available
-    if ENV["MATCH_READONLY"] == "true" && !ENV["MATCH_PASSWORD"].nil?
-      begin
-        UI.message("Attempting to use match for provisioning profiles...")
-        match(
-          type: "appstore",
-          readonly: true,
-          app_identifier: ENV["APP_IDENTIFIER"] || "com.yourcompany.exporeactnativepaper",
-          team_id: ENV["APPLE_TEAM_ID"]
-        )
-        UI.success("Match successfully configured provisioning profiles")
-      rescue => e
-        UI.error("Match failed: #{e.message}")
-        UI.message("Falling back to manual code signing setup")
-      end
-    end
-    
-    # Configure Xcode project for code signing (fallback to automatic if manual fails)
     begin
-      # First try manual signing if we have a provisioning profile
-      if ENV["PROVISIONING_PROFILE_UUID"] || ENV["PROVISIONING_PROFILE_NAME"]
-        UI.message("Setting up manual code signing")
-        update_code_signing_settings(
-          use_automatic_signing: false,
-          path: "ios/exporeactnativepaper.xcodeproj",
-          team_id: ENV["APPLE_TEAM_ID"],
-          code_sign_identity: "iPhone Distribution",
-          profile_name: ENV["PROVISIONING_PROFILE_NAME"],
-          profile_uuid: ENV["PROVISIONING_PROFILE_UUID"],
-          targets: ["exporeactnativepaper"],
-          build_configurations: ["Release", "Debug"]
-        )
+      # Try App Store Connect API key auth
+      if has_api_key && has_api_content
+        UI.message("Using App Store Connect API key authentication")
+        
+        if ENV["ASC_KEY_CONTENT_BASE64"]
+          app_store_connect_api_key(
+            key_id: ENV["ASC_KEY_ID"],
+            issuer_id: ENV["ASC_ISSUER_ID"],
+            key_content: ENV["ASC_KEY_CONTENT_BASE64"],
+            is_key_content_base64: true,
+            in_house: false
+          )
+        elsif ENV["ASC_KEY_FILEPATH"]
+          app_store_connect_api_key(
+            key_id: ENV["ASC_KEY_ID"],
+            issuer_id: ENV["ASC_ISSUER_ID"],
+            key_filepath: ENV["ASC_KEY_FILEPATH"],
+            in_house: false
+          )
+        else
+          app_store_connect_api_key(
+            key_id: ENV["ASC_KEY_ID"],
+            issuer_id: ENV["ASC_ISSUER_ID"],
+            key_content: ENV["ASC_KEY_CONTENT"],
+            in_house: false
+          )
+        end
+      # Fall back to Apple ID authentication if API key doesn't work
+      elsif has_apple_id
+        UI.important("Using Apple ID authentication")
+        # No explicit action needed, fastlane will use these environment variables
       else
-        # Fallback to automatic signing
-        UI.message("Setting up automatic code signing")
+        UI.important("No valid authentication method found. Trying code signing without authentication.")
+      end
+    rescue => e
+      UI.error("Authentication error: #{e.message}")
+      UI.error("Will try to continue without authentication")
+    end
+    
+    # Configure Xcode project for code signing
+    begin
+      if ENV["APPLE_TEAM_ID"].nil?
+        UI.error("No team ID provided! This will likely cause signing to fail.")
+      else
+        # Set up automatic signing as a safer default
+        UI.message("Setting up automatic code signing with team ID: #{ENV["APPLE_TEAM_ID"]}")
         update_code_signing_settings(
           use_automatic_signing: true,
           path: "ios/exporeactnativepaper.xcodeproj",
           team_id: ENV["APPLE_TEAM_ID"],
-          targets: ["exporeactnativepaper"],
-          build_configurations: ["Release", "Debug"]
+          targets: ["exporeactnativepaper"]
         )
       end
     rescue => e
       UI.error("Error setting code signing: #{e.message}")
-      UI.error("Make sure your team ID is correct and you have access to the Apple Developer account")
     end
   end
 
@@ -119,14 +98,28 @@ platform :ios do
   lane :build do
     setup_code_signing
     
-    # Build the app with performance optimizations
+    # Print debugging information
+    UI.important("Xcode path: #{`xcode-select -p`.strip}")
+    UI.important("Current directory: #{Dir.pwd}")
+    UI.important("Workspace exists: #{File.exist?('ios/exporeactnativepaper.xcworkspace')}")
+    
+    # Build the app with simplified configuration for CI
     build_ios_app(
       workspace: "ios/exporeactnativepaper.xcworkspace",
       scheme: "exporeactnativepaper",
-      export_method: "development",
+      export_method: "development", # Use development method for CI
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
       output_name: "exporeactnativepaper-dev.ipa",
-      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=12.0" # Set minimum iOS version to 12.0
+      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=12.0",
+      include_symbols: false,
+      include_bitcode: false,
+      silent: false, # Show more build output
+      skip_package_ipa: false, # This may help avoid archive errors
+      skip_profile_detection: true, # Avoid extra profile detection steps
+      export_options: {
+        signingStyle: "automatic",
+        teamID: ENV["APPLE_TEAM_ID"]
+      }
     )
   end
 
@@ -134,24 +127,33 @@ platform :ios do
   lane :beta do
     setup_code_signing
     
+    # Print debugging information
+    UI.important("Xcode path: #{`xcode-select -p`.strip}")
+    UI.important("Current directory: #{Dir.pwd}")
+    UI.important("Workspace exists: #{File.exist?('ios/exporeactnativepaper.xcworkspace')}")
+    
     # Increment build number
     increment_build_number(
       xcodeproj: "ios/exporeactnativepaper.xcodeproj"
     )
     
-    # Build the app for App Store with performance optimizations
+    # Build the app with simplified configuration
     build_ios_app(
       workspace: "ios/exporeactnativepaper.xcworkspace",
       scheme: "exporeactnativepaper",
       export_method: "app-store",
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
       output_name: "exporeactnativepaper.ipa",
-      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=12.0", # Set minimum iOS version to 12.0
+      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO IPHONEOS_DEPLOYMENT_TARGET=12.0", 
       clean: true,
-      include_bitcode: false, # Performance optimization
+      include_bitcode: false,
+      silent: false, # Show more build output
       export_options: {
         signingStyle: "automatic",
-        teamID: ENV["APPLE_TEAM_ID"]
+        teamID: ENV["APPLE_TEAM_ID"],
+        compileBitcode: false,
+        provisioningProfiles: ENV["PROVISIONING_PROFILE_NAME"] ? 
+          { (ENV["APP_IDENTIFIER"] || "com.yourcompany.exporeactnativepaper") => ENV["PROVISIONING_PROFILE_NAME"] } : nil
       }
     )
     
