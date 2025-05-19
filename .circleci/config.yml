@@ -47,6 +47,9 @@ jobs:
             echo "FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD:+set (value hidden)}"
             echo "MATCH_PASSWORD: ${MATCH_PASSWORD:+set (value hidden)}"
             echo "MATCH_READONLY: ${MATCH_READONLY}"
+            echo "PROVISIONING_PROFILE_NAME: ${PROVISIONING_PROFILE_NAME:+set (value hidden)}"
+            echo "PROVISIONING_PROFILE_UUID: ${PROVISIONING_PROFILE_UUID:+set (value hidden)}"
+            echo "APP_IDENTIFIER: ${APP_IDENTIFIER:+set (value hidden)}"
             echo "FL_OUTPUT_DIR: ${FL_OUTPUT_DIR}"
             echo "=============================================="
       - node/install:
@@ -78,6 +81,34 @@ jobs:
       - run:
           name: List fastlane directory contents
           command: ls -la fastlane/
+      - run:
+          name: Prepare code signing environment
+          command: |
+            # Default app identifier if not set in environment
+            if [ -z "$APP_IDENTIFIER" ]; then
+              # Try to extract from Info.plist
+              if [ -f "ios/exporeactnativepaper/Info.plist" ]; then
+                APP_ID=$(grep -A1 "CFBundleIdentifier" ios/exporeactnativepaper/Info.plist | grep string | sed -E 's/.*<string>(.*)<\/string>.*/\1/')
+                if [ -n "$APP_ID" ]; then
+                  echo "Found APP_IDENTIFIER in Info.plist: $APP_ID"
+                  export APP_IDENTIFIER="$APP_ID"
+                else
+                  echo "Could not find CFBundleIdentifier in Info.plist, using default value"
+                  export APP_IDENTIFIER="com.yourcompany.exporeactnativepaper"
+                fi
+              else
+                echo "Info.plist not found, using default app identifier"
+                export APP_IDENTIFIER="com.yourcompany.exporeactnativepaper"
+              fi
+              echo "Setting APP_IDENTIFIER=$APP_IDENTIFIER"
+            fi
+            
+            # Make sure APPLE_TEAM_ID is set
+            if [ -z "$APPLE_TEAM_ID" ]; then
+              echo "ERROR: APPLE_TEAM_ID environment variable is not set!"
+              echo "Please set this in your CircleCI project settings."
+              exit 1
+            fi
       - run:
           name: Run tests and upload to TestFlight
           command: |

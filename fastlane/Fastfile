@@ -58,14 +58,61 @@ platform :ios do
       )
     end
     
-    # Configure Xcode project for automatic signing
-    update_code_signing_settings(
-      use_automatic_signing: true,
-      path: "ios/ExpoReactNativePaper.xcodeproj",
-      team_id: ENV["APPLE_TEAM_ID"],
-      targets: ["ExpoReactNativePaper"], # Update with your main target name
-      build_configurations: ["Release", "Debug"]
-    )
+    # Check if team ID is available
+    if ENV["APPLE_TEAM_ID"].nil? || ENV["APPLE_TEAM_ID"].empty?
+      UI.error("APPLE_TEAM_ID environment variable is not set or is empty!")
+      UI.error("Please set a valid team ID in your environment variables.")
+    else
+      UI.success("APPLE_TEAM_ID is set to: #{ENV["APPLE_TEAM_ID"]}")
+    end
+    
+    # Attempt to use match if available
+    if ENV["MATCH_READONLY"] == "true" && !ENV["MATCH_PASSWORD"].nil?
+      begin
+        UI.message("Attempting to use match for provisioning profiles...")
+        match(
+          type: "appstore",
+          readonly: true,
+          app_identifier: ENV["APP_IDENTIFIER"] || "com.yourcompany.exporeactnativepaper",
+          team_id: ENV["APPLE_TEAM_ID"]
+        )
+        UI.success("Match successfully configured provisioning profiles")
+      rescue => e
+        UI.error("Match failed: #{e.message}")
+        UI.message("Falling back to manual code signing setup")
+      end
+    end
+    
+    # Configure Xcode project for code signing (fallback to automatic if manual fails)
+    begin
+      # First try manual signing if we have a provisioning profile
+      if ENV["PROVISIONING_PROFILE_UUID"] || ENV["PROVISIONING_PROFILE_NAME"]
+        UI.message("Setting up manual code signing")
+        update_code_signing_settings(
+          use_automatic_signing: false,
+          path: "ios/exporeactnativepaper.xcodeproj",
+          team_id: ENV["APPLE_TEAM_ID"],
+          code_sign_identity: "iPhone Distribution",
+          profile_name: ENV["PROVISIONING_PROFILE_NAME"],
+          profile_uuid: ENV["PROVISIONING_PROFILE_UUID"],
+          targets: ["exporeactnativepaper"],
+          build_configurations: ["Release", "Debug"]
+        )
+      else
+        # Fallback to automatic signing
+        UI.message("Setting up automatic code signing")
+        update_code_signing_settings(
+          use_automatic_signing: true,
+          path: "ios/exporeactnativepaper.xcodeproj",
+          team_id: ENV["APPLE_TEAM_ID"],
+          targets: ["exporeactnativepaper"],
+          build_configurations: ["Release", "Debug"]
+        )
+      end
+    rescue => e
+      UI.error("Error setting code signing: #{e.message}")
+      UI.error("Make sure your team ID is correct and you have access to the Apple Developer account")
+    end
   end
 
   desc "Build iOS app for testing (for CI)"
@@ -74,11 +121,11 @@ platform :ios do
     
     # Build the app with performance optimizations
     build_ios_app(
-      workspace: "ios/ExpoReactNativePaper.xcworkspace",
-      scheme: "ExpoReactNativePaper",
+      workspace: "ios/exporeactnativepaper.xcworkspace",
+      scheme: "exporeactnativepaper",
       export_method: "development",
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
-      output_name: "ExpoReactNativePaper-dev.ipa",
+      output_name: "exporeactnativepaper-dev.ipa",
       xcargs: "COMPILER_INDEX_STORE_ENABLE=NO" # Performance optimization
     )
   end
@@ -89,19 +136,26 @@ platform :ios do
     
     # Increment build number
     increment_build_number(
-      xcodeproj: "ios/ExpoReactNativePaper.xcodeproj"
+      xcodeproj: "ios/exporeactnativepaper.xcodeproj"
     )
     
     # Build the app for App Store with performance optimizations
     build_ios_app(
-      workspace: "ios/ExpoReactNativePaper.xcworkspace",
-      scheme: "ExpoReactNativePaper",
+      workspace: "ios/exporeactnativepaper.xcworkspace",
+      scheme: "exporeactnativepaper",
       export_method: "app-store",
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
-      output_name: "ExpoReactNativePaper.ipa",
+      output_name: "exporeactnativepaper.ipa",
       xcargs: "COMPILER_INDEX_STORE_ENABLE=NO", # Performance optimization
       clean: true,
-      include_bitcode: false # Performance optimization
+      include_bitcode: false, # Performance optimization
+      export_options: {
+        provisioningProfiles: {
+          "com.yourcompany.exporeactnativepaper" => ENV["PROVISIONING_PROFILE_NAME"] || "match AppStore com.yourcompany.exporeactnativepaper"
+        },
+        signingStyle: "manual",
+        teamID: ENV["APPLE_TEAM_ID"]
+      }
     )
     
     # Upload to TestFlight
