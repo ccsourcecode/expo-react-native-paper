@@ -187,3 +187,79 @@ We extend our gratitude to the developers and maintainers of the following open-
 - [React Native](https://reactnative.dev/)
 - [React Native Paper](https://callstack.github.io/react-native-paper/)
 - [Expo Router](https://docs.expo.dev/build-reference/variables/)
+
+# CI/CD Setup with Fastlane
+
+This project uses Fastlane for automating the build and deployment process for both iOS and Android platforms. The CI/CD setup follows best practices from [this article](https://medium.com/@tusharkumar27864/best-practices-for-ci-cd-in-react-native-projects-cc2340414715).
+
+## CI/CD Workflow
+
+### GitHub Actions
+- Runs tests on every pull request
+- Builds and deploys to TestFlight and Play Store Beta when code is merged to main
+
+### CircleCI
+- Runs tests on every pull request
+- Builds and deploys to TestFlight and Play Store Beta when code is merged to main
+
+## Environment Variables
+
+The following environment variables need to be set in your CI/CD provider's secrets:
+
+### iOS
+- `ASC_KEY_ID`: App Store Connect API Key ID
+- `ASC_ISSUER_ID`: App Store Connect API Issuer ID
+- `ASC_KEY_CONTENT`: App Store Connect API Key Content (base64 encoded)
+- `APPLE_TEAM_ID`: Your Apple Developer Team ID
+
+### Android
+- `ANDROID_KEYSTORE_FILE`: Path to your keystore file
+- `ANDROID_KEYSTORE_PASSWORD`: Your keystore password
+- `ANDROID_KEY_ALIAS`: Your key alias
+- `ANDROID_KEY_PASSWORD`: Your key password
+- `GOOGLE_PLAY_JSON_KEY`: Path to your Google Play JSON key file
+- `ANDROID_SIGNING_KEY`: Android keystore file (base64 encoded)
+- `ANDROID_PLAY_STORE_CREDENTIALS`: Google Play Store credentials (base64 encoded)
+
+## Local Development
+
+To run Fastlane locally:
+
+```bash
+# For iOS TestFlight deployment
+cd fastlane && fastlane ios beta
+
+# For Android Play Store Beta deployment
+cd fastlane && fastlane android beta
+```
+
+# Performance Optimizations
+
+This project includes performance optimizations based on [this article](https://medium.com/@tusharkumar27864/speed-up-build-times-and-improve-performance-in-react-native-f8313d51a8a7) to speed up build times in React Native:
+
+## iOS Optimizations
+
+- Disabled Flipper for production builds
+- Optimized CocoaPods configuration:
+  - Disabled Bitcode
+  - Disabled compiler index store
+  - Set Swift compilation mode to 'wholemodule'
+  - Excluded unused architectures for simulator builds
+
+## Android Optimizations
+
+- Enhanced Gradle configuration:
+  - Enabled Gradle daemon
+  - Enabled parallel builds
+  - Enabled build caching
+  - Configured 'configure on demand'
+  - Increased memory allocation
+- Enabled R8 full mode for better optimization
+- Limited ABIs to only those needed (armeabi-v7a, arm64-v8a)
+- Enabled Hermes JavaScript engine
+- Disabled the new architecture for stability
+
+## Testing Optimizations
+
+- Limited Jest to use fewer workers in CI environments
+- Increased Node.js memory allocation for large test suites

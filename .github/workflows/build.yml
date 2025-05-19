@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: true
+      # Performance optimizations for Jest
+      JEST_WORKER_ID: 1
+      NODE_OPTIONS: "--max-old-space-size=4096"
     
     steps:
       - uses: actions/checkout@v3
@@ -24,7 +27,7 @@ jobs:
         run: npm install
       
       - name: Run Tests
-        run: npm test
+        run: npm test -- --maxWorkers=2
       
       - name: TypeScript Check
         run: npm run tsc
@@ -39,9 +42,9 @@ jobs:
       # ASC_ISSUER_ID: App Store Connect API Issuer ID
       # ASC_KEY_CONTENT: App Store Connect API Key Content (base64 encoded)
       # APPLE_TEAM_ID: Your Apple Developer Team ID
-      # APP_STORE_CONNECT_API_KEY: App Store Connect API Key (base64 encoded)
-      # IOS_PRIVATE_KEY: iOS distribution certificate private key (base64 encoded)
       FL_OUTPUT_DIR: output
+      # Performance optimizations
+      DISABLE_FLIPPER: 1
     
     steps:
       - uses: actions/checkout@v3
@@ -54,48 +57,14 @@ jobs:
       - name: Install JS Dependencies
         run: npm install
       
-      - name: Create Lock Files
-        run: |
-          # Create empty lock files to prevent cache errors
-          touch Gemfile.lock
-          mkdir -p ios
-          touch ios/Podfile.lock
-      
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.1.4'
           bundler-cache: true
-          
-      - name: Fix OpenSSL issues
-        run: |
-          chmod +x fastlane/fix-openssl.sh
-          ./fastlane/fix-openssl.sh
-          
-      - name: Install compatible OpenSSL
-        run: |
-          # Install OpenSSL 3
-          brew install openssl@3
-          echo 'export PATH="$(brew --prefix openssl@3)/bin:$PATH"' >> $GITHUB_ENV
-          echo 'export LDFLAGS="-L$(brew --prefix openssl@3)/lib"' >> $GITHUB_ENV
-          echo 'export CPPFLAGS="-I$(brew --prefix openssl@3)/include"' >> $GITHUB_ENV
-          echo 'export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"' >> $GITHUB_ENV
-          echo 'export RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl@3)"' >> $GITHUB_ENV
       
-      - name: Ruby and Bundler Info
-        run: |
-          ruby -v
-          gem install bundler -v 2.4.22 --user-install
-          export GEM_HOME="$HOME/.gem"
-          export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
-          bundler -v
-      
-      - name: Install Ruby Dependencies
-        run: |
-          export GEM_HOME="$HOME/.gem"
-          export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
-          bundle config set --local path 'vendor/bundle'
-          bundle install --jobs=4 --retry=3
+      - name: Install Fastlane
+        run: gem install fastlane cocoapods
         
       - name: Setup iOS Signing Configuration
         run: |
@@ -109,11 +78,35 @@ jobs:
       - name: Generate Native Code from Expo
         run: npx expo prebuild --clean
         
+      - name: Add Performance Optimizations to Podfile
+        run: |
+          echo "Adding performance optimizations to Podfile..."
+          cat >> ios/Podfile << 'EOL'
+
+          # Performance optimizations
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+                config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FB_SONARKIT_ENABLED=0'
+                config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
+                
+                # Speed up build time
+                config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'
+                
+                # Recommended flags for performance
+                config.build_settings['COMPILER_INDEX_STORE_ENABLE'] = 'NO'
+                config.build_settings['ENABLE_BITCODE'] = 'NO'
+              end
+            end
+          end
+          EOL
+        
       - name: Install CocoaPods
-        run: cd ios && pod install
+        run: cd ios && pod install --verbose
         
       - name: Deploy to TestFlight
-        run: sh fastlane/deploy-ios.sh
+        run: cd fastlane && fastlane ios beta
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -121,8 +114,6 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           FASTLANE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
-          IOS_PRIVATE_KEY: ${{ secrets.IOS_PRIVATE_KEY }}
         
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -135,7 +126,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.parallel=false -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError'"
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'"
+      # Performance optimizations
+      DISABLE_FLIPPER: 1
       
     steps:
       - uses: actions/checkout@v3
@@ -147,115 +140,64 @@ jobs:
       
       - name: Install JS Dependencies
         run: npm install
-      
-      - name: Create Required Files
-        run: |
-          echo "Creating initial required files..."
-          touch Gemfile.lock
-          mkdir -p android/app
-          echo "// Placeholder until expo prebuild creates the real files" > android/build.gradle
-          echo "// Placeholder until expo prebuild creates the real files" > android/app/build.gradle
-      
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.1.4'
-          bundler-cache: true
-          
-      - name: Fix OpenSSL issues
-        run: |
-          chmod +x fastlane/fix-openssl.sh
-          ./fastlane/fix-openssl.sh
-          
-      - name: Install compatible OpenSSL
-        run: |
-          # Install OpenSSL 3
-          brew install openssl@3
-          echo 'export PATH="$(brew --prefix openssl@3)/bin:$PATH"' >> $GITHUB_ENV
-          echo 'export LDFLAGS="-L$(brew --prefix openssl@3)/lib"' >> $GITHUB_ENV
-          echo 'export CPPFLAGS="-I$(brew --prefix openssl@3)/include"' >> $GITHUB_ENV
-          echo 'export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"' >> $GITHUB_ENV
-          echo 'export RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl@3)"' >> $GITHUB_ENV
-      
-      - name: Ruby and Bundler Info
-        run: |
-          ruby -v
-          gem install bundler -v 2.4.22 --user-install
-          export GEM_HOME="$HOME/.gem"
-          export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
-          bundler -v
-      
-      - name: Install Ruby Dependencies
-        run: |
-          export GEM_HOME="$HOME/.gem"
-          export PATH="$GEM_HOME/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$HOME/.local/share/gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
-          bundle config set --local path 'vendor/bundle'
-          bundle install --jobs=4 --retry=3
         
       - uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '11'
           
-      - name: Install Ninja (required for react-native-reanimated)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build
-        
       - name: Setup Android SDK
         uses: android-actions/setup-android@v2
+        
+      - name: Install Fastlane
+        run: gem install fastlane
           
       - name: Generate Native Code from Expo
-        run: npx expo prebuild --clean --no-install
-        timeout-minutes: 20
+        run: npx expo prebuild --clean
         
-      - name: Fix Gradle Properties
+      - name: Add Performance Optimizations to Gradle
         run: |
-          chmod +x fastlane/fix-gradle-properties.sh
-          ./fastlane/fix-gradle-properties.sh
-        
-      - name: Ensure gradlew exists
-        run: |
-          if [ ! -f "./android/gradlew" ]; then
-            echo "gradlew not found! Creating gradle wrapper..."
-            cd android
-            gradle wrapper
-            cd ..
-          fi
-          chmod +x ./android/gradlew
-        
-      - name: Configure Gradle for CI
-        run: |
-          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError" >> android/gradle.properties
-          echo "org.gradle.caching=true" >> android/gradle.properties
-          echo "android.enableJetifier=true" >> android/gradle.properties
-          echo "org.gradle.daemon=false" >> android/gradle.properties
-          echo "org.gradle.workers.max=1" >> android/gradle.properties
-          echo "org.gradle.parallel=false" >> android/gradle.properties
-          echo "android.disableAutomaticComponentCreation=true" >> android/gradle.properties
-          # Reduce the amount of memory used by the build
-          echo "kapt.incremental.apt=false" >> android/gradle.properties
-          # Apply specific Skia optimizations
-          echo "skiko.native.dependencies.strip=false" >> android/gradle.properties
+          echo "Adding performance optimizations to gradle.properties..."
+          cat >> android/gradle.properties << 'EOL'
+          
+          # Performance optimizations
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+          org.gradle.daemon=true
+          org.gradle.configureondemand=true
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          android.enableR8.fullMode=true
+          android.enableJetifier=true
+          android.useAndroidX=true
+          android.disableAutomaticComponentCreation=true
+          
+          # Disable unused ABIs to speed up build
+          android.abi.filter=armeabi-v7a,arm64-v8a
+          
+          # Hermes optimizations
+          hermesEnabled=true
+          newArchEnabled=false
+          EOL
         
       - name: Setup Android Signing Keys
         run: |
-          # Make the script executable
           chmod +x fastlane/setup-android-keys.sh
-          
-          # Run the setup script
           ./fastlane/setup-android-keys.sh
-        
-      - name: Deploy to Google Play
-        run: sh fastlane/deploy-android.sh
-        timeout-minutes: 30
         env:
+          ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_PLAY_STORE_CREDENTIALS: ${{ secrets.ANDROID_PLAY_STORE_CREDENTIALS }}
-          ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
-          ANDROID_KEYSTORE_FILE: ./android-key.keystore
+        
+      - name: Deploy to Play Store Beta
+        run: cd fastlane && fastlane android beta
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ secrets.ANDROID_KEYSTORE_FILE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
         
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3

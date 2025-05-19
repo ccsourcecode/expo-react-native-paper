@@ -3,6 +3,9 @@ default_platform(:ios)
 before_all do
   # Set up CI environment if running on CI
   setup_ci if FastlaneCore::Helper.ci?
+  
+  # Performance optimization - disable Flipper for production builds
+  ENV["DISABLE_FLIPPER"] = "1" if ENV["FASTLANE_LANE"] == "beta" || ENV["FASTLANE_LANE"] == "release"
 end
 
 platform :ios do
@@ -30,13 +33,14 @@ platform :ios do
   lane :build do
     setup_code_signing
     
-    # Build the app
+    # Build the app with performance optimizations
     build_ios_app(
       workspace: "ios/ExpoReactNativePaper.xcworkspace",
       scheme: "ExpoReactNativePaper",
       export_method: "development",
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
-      output_name: "ExpoReactNativePaper-dev.ipa"
+      output_name: "ExpoReactNativePaper-dev.ipa",
+      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO" # Performance optimization
     )
   end
 
@@ -44,13 +48,21 @@ platform :ios do
   lane :beta do
     setup_code_signing
     
-    # Build the app for App Store
+    # Increment build number
+    increment_build_number(
+      xcodeproj: "ios/ExpoReactNativePaper.xcodeproj"
+    )
+    
+    # Build the app for App Store with performance optimizations
     build_ios_app(
       workspace: "ios/ExpoReactNativePaper.xcworkspace",
       scheme: "ExpoReactNativePaper",
       export_method: "app-store",
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
-      output_name: "ExpoReactNativePaper.ipa"
+      output_name: "ExpoReactNativePaper.ipa",
+      xcargs: "COMPILER_INDEX_STORE_ENABLE=NO", # Performance optimization
+      clean: true,
+      include_bitcode: false # Performance optimization
     )
     
     # Upload to TestFlight
@@ -78,8 +90,15 @@ end
 platform :android do
   desc "Build Android app"
   lane :build do
+    # Performance optimization - disable unused ABIs
+    gradle_properties = {
+      "android.abi.filter" => "armeabi-v7a,arm64-v8a",
+      "android.enableR8.fullMode" => "true",
+      "hermesEnabled" => "true"
+    }
+    
     # Build the app
-    build_android_app(
+    gradle(
       task: "assemble",
       build_type: "Release",
       project_dir: "android/",
@@ -88,36 +107,36 @@ platform :android do
         "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
         "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
         "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
-      }
+      }.merge(gradle_properties)
     )
   end
 
   desc "Build and upload to Play Store internal track"
   lane :beta do
-    # Print progress to prevent timeouts
-    UI.message("Starting Android bundle build...")
-    
-    # Clean previous build files
-    gradle(
-      task: "clean",
-      project_dir: "android/"
+    # Increment version code
+    increment_version_code(
+      gradle_file_path: "android/app/build.gradle"
     )
     
-    # Build Android App Bundle
+    # Performance optimization - disable unused ABIs
+    gradle_properties = {
+      "android.abi.filter" => "armeabi-v7a,arm64-v8a",
+      "android.enableR8.fullMode" => "true",
+      "hermesEnabled" => "true"
+    }
+    
+    # Build Android App Bundle with performance optimizations
     gradle(
       task: "bundle",
       build_type: "Release",
       project_dir: "android/",
-      print_command: true,
       properties: {
         "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_FILE"],
         "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
         "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
         "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
-      }
+      }.merge(gradle_properties)
     )
-    
-    UI.message("Uploading to Play Store internal track...")
     
     # Upload to Play Store
     upload_to_play_store(
