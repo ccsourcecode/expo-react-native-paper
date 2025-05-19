@@ -92,12 +92,25 @@ jobs:
       - run:
           name: Install Ruby Dependencies
           command: |
-            gem install fastlane
-            gem install cocoapods
+            # Install gems locally for the current user
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/bin:$PATH"
+            
+            # Install fastlane and cocoapods locally
+            gem install fastlane --user-install
+            gem install cocoapods --user-install
+            
+            # Verify installation
+            echo "Fastlane version: $(fastlane --version)"
+            echo "CocoaPods version: $(pod --version)"
 
       - run:
           name: Setup iOS Signing Configuration
           command: |
+            # Set gem path for commands
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/bin:$PATH"
+            
             chmod +x fastlane/setup-ios-signing.sh
             ./fastlane/setup-ios-signing.sh
             
@@ -113,6 +126,10 @@ jobs:
       - run:
           name: Install CocoaPods with Performance Optimizations
           command: |
+            # Set gem path for commands
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/bin:$PATH"
+            
             # Add performance optimizations to Podfile using individual echo statements
             echo "# Performance optimizations" >> ios/Podfile
             echo "post_install do |installer|" >> ios/Podfile
@@ -145,6 +162,10 @@ jobs:
       - run:
           name: Deploy to TestFlight
           command: |
+            # Set gem path for commands
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/bin:$PATH"
+            
             cd fastlane
             fastlane ios beta
           environment:
@@ -191,7 +212,15 @@ jobs:
       - run:
           name: Install Ruby Dependencies
           command: |
-            gem install fastlane
+            # Install gems locally for the current user
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/bin:$PATH"
+            
+            # Install fastlane locally
+            gem install fastlane --user-install
+            
+            # Verify installation
+            echo "Fastlane version: $(fastlane --version)"
 
       - run:
           name: Generate Native Code from Expo
@@ -223,12 +252,20 @@ jobs:
       - run:
           name: Setup Android Signing Keys
           command: |
+            # Set gem path for commands
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/bin:$PATH"
+            
             chmod +x fastlane/setup-android-keys.sh
             ./fastlane/setup-android-keys.sh
             
       - run:
           name: Deploy to Play Store Beta
           command: |
+            # Set gem path for commands
+            export GEM_HOME="$HOME/.gem"
+            export PATH="$GEM_HOME/bin:$PATH"
+            
             cd fastlane
             fastlane android beta
           environment:
