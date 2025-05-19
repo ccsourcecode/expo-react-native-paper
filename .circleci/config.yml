@@ -111,6 +111,9 @@ jobs:
             export GEM_HOME="$HOME/.gem"
             export PATH="$GEM_HOME/bin:$PATH"
             
+            # Set Ruby version explicitly for rbenv
+            rbenv global 3.3.0
+            
             chmod +x fastlane/setup-ios-signing.sh
             ./fastlane/setup-ios-signing.sh
             
@@ -147,6 +150,9 @@ jobs:
             export GEM_HOME="$HOME/.gem"
             export PATH="$GEM_HOME/bin:$PATH"
             
+            # Set Ruby version explicitly for rbenv
+            rbenv global 3.3.0
+            
             cd fastlane
             fastlane ios beta
           environment:
@@ -154,6 +160,15 @@ jobs:
             ASC_ISSUER_ID: ${ASC_ISSUER_ID}
             ASC_KEY_CONTENT: ${ASC_KEY_CONTENT}
             APPLE_TEAM_ID: ${APPLE_TEAM_ID}
+            
+      - store_artifacts:
+          path: output
+          destination: ios-build
+          
+      # Optional: Store the .ipa file separately for easy access
+      - store_artifacts:
+          path: ~/Library/Developer/Xcode/Archives
+          destination: ios-archives
 
   android-build-and-deploy:
     docker:
@@ -196,6 +211,12 @@ jobs:
             # Install gems locally for the current user
             export GEM_HOME="$HOME/.gem"
             export PATH="$GEM_HOME/bin:$PATH"
+            
+            # Set Ruby version explicitly for rbenv
+            echo "Using Ruby from rbenv:"
+            rbenv versions
+            rbenv global 3.3.0
+            ruby --version
             
             # Install fastlane locally
             gem install fastlane --user-install
@@ -260,6 +281,9 @@ jobs:
             export GEM_HOME="$HOME/.gem"
             export PATH="$GEM_HOME/bin:$PATH"
             
+            # Set Ruby version explicitly for rbenv
+            rbenv global 3.3.0
+            
             cd fastlane
             fastlane android beta
           environment:
@@ -268,6 +292,10 @@ jobs:
             ANDROID_KEY_ALIAS: ${ANDROID_KEY_ALIAS}
             ANDROID_KEY_PASSWORD: ${ANDROID_KEY_PASSWORD}
             GOOGLE_PLAY_JSON_KEY: ${GOOGLE_PLAY_JSON_KEY}
+            
+      - store_artifacts:
+          path: android/app/build/outputs
+          destination: android-build
 
 workflows:
   version: 2
