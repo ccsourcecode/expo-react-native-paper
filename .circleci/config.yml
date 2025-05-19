@@ -70,6 +70,12 @@ jobs:
           paths:
             - vendor/bundle
       - run:
+          name: Install CocoaPods dependencies
+          command: |
+            cd ios
+            pod install
+            ls -la  # List files to verify workspace creation
+      - run:
           name: List fastlane directory contents
           command: ls -la fastlane/
       - run:
@@ -152,6 +158,13 @@ jobs:
       - run:
           name: Set JAVA_HOME
           command: echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> $BASH_ENV
+      - run:
+          name: Install Ninja build system
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+            # Verify ninja is installed
+            ninja --version
       - node/install:
           node-version: '22.15.0'
       - run:
