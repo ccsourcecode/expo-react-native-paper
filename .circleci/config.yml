@@ -241,6 +241,17 @@ jobs:
             echo "Fastlane version: $(fastlane --version)"
 
       - run:
+          name: Install Ninja and CMake Dependencies
+          command: |
+            # Install Ninja build system
+            sudo apt-get update
+            sudo apt-get install -y ninja-build cmake
+            
+            # Verify installation
+            ninja --version
+            cmake --version
+
+      - run:
           name: Generate Native Code from Expo
           command: npx expo prebuild --clean
           
