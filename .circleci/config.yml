@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   node: circleci/node@5
+  macos: circleci/macos@2.0.0
 
 jobs:
   test-node:
@@ -19,7 +20,7 @@ jobs:
 
   build-ios:
     macos:
-      xcode: "15.5"
+      xcode: "15.4.0"
     steps:
       - checkout
       - run:
@@ -30,43 +31,44 @@ jobs:
       - run:
           name: Install node modules
           command: npm i
+      - macos/switch-ruby:
+          version: "3.1.3"
       - run:
-          name: Install Ruby 2.7.4
-          command: |
-            brew install rbenv
-            rbenv install 2.7.4
-            rbenv global 2.7.4
-            rbenv rehash
-            ruby -v
-      - run:
-          name: Install Bundler 2.2.4
-          command: gem install bundler -v 2.2.4
-      - run:
-          name: Install Fastlane
-          command: gem install fastlane -v '>= 2.0.0'
+          name: Install Bundler
+          command: gem install bundler
+      - restore_cache:
+          keys:
+            - gem-cache-v1-{{ checksum "Gemfile.lock" }}
       - run:
           name: Bundle install
           command: bundle install
-          working_directory: ios
+      - save_cache:
+          key: gem-cache-v1-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
       - run:
           name: Run tests and upload to TestFlight
-          command: bundle exec fastlane uploadtestflight
+          command: bundle exec fastlane ios uploadtestflight
           working_directory: ios
 
   build-ruby:
     docker:
-      - image: circleci/ruby:2.7.4
+      - image: cimg/ruby:3.1.3
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - gem-cache-v1-{{ checksum "Gemfile.lock" }}
       - run:
           name: Install Bundler
-          command: gem install bundler -v 2.4.22
+          command: gem install bundler
       - run:
-          name: Install Fastlane Gem
-          command: gem install fastlane -v '>= 2.0.0'
-      - run:
-          name: Install Fastlane
+          name: Bundle install
           command: bundle install
+      - save_cache:
+          key: gem-cache-v1-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
 
   build-android:
     docker:
@@ -78,36 +80,58 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Decrypt Keystore File
-          command: openssl aes-256-cbc -d -in android/app/release.keystore.enc -out android/app/release.keystore -k ENCRYPTION_KEY
+          name: Setup Android Keystore
+          command: |
+            # Create directory for keystore
+            mkdir -p android/app
+            
+            # Create keystore file from environment variable
+            echo $ANDROID_KEYSTORE_BASE64 | base64 -d > android/app/release.keystore
+            
+            # Verify keystore file was created
+            if [ -f "android/app/release.keystore" ]; then
+              echo "Keystore file created successfully"
+            else
+              echo "Failed to create keystore file"
+              exit 1
+            fi
       - run:
           name: Install Java 11
           command: sudo apt-get update && sudo apt-get install -y openjdk-11-jdk
       - run:
           name: Set JAVA_HOME
           command: echo 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64' >> $BASH_ENV
-      - run:
-          name: Install Node.js
-          command: |
-            curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-      - run:
-          name: Check Node Version
-          command: node --version
       - node/install:
           node-version: '22.15.0'
       - run:
           name: Install node modules
           command: npm i
+      - restore_cache:
+          keys:
+            - gem-cache-v1-{{ checksum "Gemfile.lock" }}
+      - run:
+          name: Install Bundler
+          command: gem install bundler
+      - run:
+          name: Bundle install
+          command: bundle install
+      - save_cache:
+          key: gem-cache-v1-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
       - run:
           name: Chmod permissions
           command: sudo chmod +x ./gradlew
           working_directory: android
       - run:
           name: Run tests and upload to Play Store
-          command: fastlane deploy_to_production
+          command: bundle exec fastlane android deploy_to_production
           working_directory: android
-
+          environment:
+            ANDROID_KEYSTORE_PATH: ~/repo/android/app/release.keystore
+            ANDROID_KEYSTORE_PASSWORD: ${ANDROID_KEYSTORE_PASSWORD}
+            ANDROID_KEY_ALIAS: ${ANDROID_KEY_ALIAS}
+            ANDROID_KEY_PASSWORD: ${ANDROID_KEY_PASSWORD}
 
 workflows:
   build-and-test:
