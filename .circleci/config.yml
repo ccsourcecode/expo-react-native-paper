@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   node: circleci/node@5.1.0
+  macos: circleci/macos@2.0.0
 
 jobs:
   react-native-test:
@@ -65,6 +66,9 @@ jobs:
     steps:
       - checkout
       
+      - macos/switch-ruby:
+          version: "3.1.3"
+      
       - restore_cache:
           keys:
             - npm-v1-{{ checksum "package-lock.json" }}-{{ arch }}
@@ -92,7 +96,7 @@ jobs:
       - run:
           name: Install Ruby Dependencies
           command: |
-            # Check Ruby version
+            # Check Ruby version after setting with orb
             ruby --version
             
             # Install bundler first
@@ -103,6 +107,7 @@ jobs:
               echo "source 'https://rubygems.org'" > Gemfile
               echo "gem 'fastlane'" >> Gemfile
               echo "gem 'cocoapods'" >> Gemfile
+              echo "gem 'jwt'" >> Gemfile
             fi
             
             # Install gems via bundler
@@ -270,6 +275,7 @@ jobs:
               echo "source 'https://rubygems.org'" > Gemfile
               echo "gem 'fastlane'" >> Gemfile
               echo "gem 'cocoapods'" >> Gemfile
+              echo "gem 'jwt'" >> Gemfile
             fi
             
             # Install gems via bundler
@@ -347,8 +353,8 @@ jobs:
             export GEM_HOME="$HOME/.gem"
             export PATH="$GEM_HOME/bin:$PATH"
             
-            # Set Ruby version explicitly for rbenv
-            rbenv global 3.3.0
+            # Use system Ruby version instead of rbenv
+            ruby --version
             
             cd fastlane
             # Add verbose output to prevent timeout
