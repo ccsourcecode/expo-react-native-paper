@@ -32,6 +32,23 @@ jobs:
       - run:
           name: Check Node Version
           command: node --version
+      - run:
+          name: Print Environment Variables
+          command: |
+            echo "============ ENVIRONMENT VARIABLES ============"
+            echo "Required environment variables for iOS build:"
+            echo "APPLE_TEAM_ID: ${APPLE_TEAM_ID:+set (value hidden)}"
+            echo "ASC_KEY_ID: ${ASC_KEY_ID:+set (value hidden)}"
+            echo "ASC_ISSUER_ID: ${ASC_ISSUER_ID:+set (value hidden)}"
+            echo "ASC_KEY_CONTENT: ${ASC_KEY_CONTENT:+set (value hidden)}"
+            echo "ASC_KEY_FILEPATH: ${ASC_KEY_FILEPATH:+set (value hidden)}"
+            echo "FASTLANE_USER: ${FASTLANE_USER:+set (value hidden)}"
+            echo "FASTLANE_PASSWORD: ${FASTLANE_PASSWORD:+set (value hidden)}"
+            echo "FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD:+set (value hidden)}"
+            echo "MATCH_PASSWORD: ${MATCH_PASSWORD:+set (value hidden)}"
+            echo "MATCH_READONLY: ${MATCH_READONLY}"
+            echo "FL_OUTPUT_DIR: ${FL_OUTPUT_DIR}"
+            echo "=============================================="
       - node/install:
           node-version: '22.15.0'
       - run:
@@ -90,7 +107,7 @@ jobs:
       - image: cimg/android:2024.01
         environment:
           BUNDLE_PATH: vendor/bundle
-          JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
           FASTLANE_SKIP_UPDATE_CHECK: "true"
           FASTLANE_HIDE_CHANGELOG: "true"
           FASTLANE_DISABLE_COLORS: "true"
@@ -98,6 +115,18 @@ jobs:
     working_directory: ~/repo
     steps:
       - checkout
+      - run:
+          name: Print Environment Variables
+          command: |
+            echo "============ ENVIRONMENT VARIABLES ============"
+            echo "Required environment variables for Android build:"
+            echo "ANDROID_KEYSTORE_BASE64: ${ANDROID_KEYSTORE_BASE64:+set (value hidden)}"
+            echo "ANDROID_KEYSTORE_PASSWORD: ${ANDROID_KEYSTORE_PASSWORD:+set (value hidden)}"
+            echo "ANDROID_KEY_ALIAS: ${ANDROID_KEY_ALIAS:+set (value hidden)}"
+            echo "ANDROID_KEY_PASSWORD: ${ANDROID_KEY_PASSWORD:+set (value hidden)}"
+            echo "GOOGLE_PLAY_JSON_KEY: ${GOOGLE_PLAY_JSON_KEY:+set (value hidden)}"
+            echo "JAVA_HOME: ${JAVA_HOME}"
+            echo "=============================================="
       - run:
           name: Setup Android Keystore
           command: |
@@ -115,11 +144,13 @@ jobs:
               exit 1
             fi
       - run:
-          name: Install Java 11
-          command: sudo apt-get update && sudo apt-get install -y openjdk-11-jdk
+          name: Install Java 17
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y openjdk-17-jdk
       - run:
           name: Set JAVA_HOME
-          command: echo 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64' >> $BASH_ENV
+          command: echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> $BASH_ENV
       - node/install:
           node-version: '22.15.0'
       - run:

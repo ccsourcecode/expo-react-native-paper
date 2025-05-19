@@ -15,6 +15,15 @@ end
 platform :ios do
   desc "Set up code signing using App Store Connect API"
   private_lane :setup_code_signing do
+    # IMPORTANT: The key_content must be properly quoted in environment variables
+    # If you're getting "invalid curve name" error, ensure your key is wrapped in quotes
+    # Example: key_content="-----BEGIN PRIVATE KEY-----\nABCDEF...\n-----END PRIVATE KEY-----"
+    
+    # Print key format for debugging (don't worry, this only shows the format, not the actual key)
+    UI.message("Key format check - first 20 chars: #{ENV["ASC_KEY_CONTENT"] ? ENV["ASC_KEY_CONTENT"][0..20] : 'nil'}")
+    UI.message("Key starts with proper header: #{ENV["ASC_KEY_CONTENT"] && ENV["ASC_KEY_CONTENT"].start_with?("-----BEGIN") ? 'Yes' : 'No'}")
+    UI.message("Key includes newlines (\\n): #{ENV["ASC_KEY_CONTENT"] && ENV["ASC_KEY_CONTENT"].include?('\n') ? 'Yes' : 'No'}")
+    
     # Use App Store Connect API Key for authentication
     app_store_connect_api_key(
       key_id: ENV["ASC_KEY_ID"],
