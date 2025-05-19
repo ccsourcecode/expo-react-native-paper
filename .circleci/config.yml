@@ -115,7 +115,7 @@ jobs:
           command: |
             # Add performance optimizations to Podfile
             echo "Adding performance optimizations to Podfile..."
-            cat >> ios/Podfile << 'EOL'
+            cat >> ios/Podfile \<< 'EOL'
 
             # Performance optimizations
             post_install do |installer|
@@ -201,16 +201,10 @@ jobs:
           command: npx expo prebuild --clean
           
       - run:
-          name: Setup Android Signing Keys
-          command: |
-            chmod +x fastlane/setup-android-keys.sh
-            ./fastlane/setup-android-keys.sh
-      
-      - run:
           name: Add Performance Optimizations to Gradle
           command: |
             echo "Adding performance optimizations to gradle.properties..."
-            cat >> android/gradle.properties << 'EOL'
+            cat >> android/gradle.properties \<< 'EOL'
             
             # Performance optimizations
             org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
@@ -230,6 +224,12 @@ jobs:
             hermesEnabled=true
             newArchEnabled=false
             EOL
+            
+      - run:
+          name: Setup Android Signing Keys
+          command: |
+            chmod +x fastlane/setup-android-keys.sh
+            ./fastlane/setup-android-keys.sh
             
       - run:
           name: Deploy to Play Store Beta

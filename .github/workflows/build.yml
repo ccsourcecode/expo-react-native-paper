@@ -81,7 +81,7 @@ jobs:
       - name: Add Performance Optimizations to Podfile
         run: |
           echo "Adding performance optimizations to Podfile..."
-          cat >> ios/Podfile << 'EOL'
+          cat > podfile_optimizations.txt << 'EOL'
 
           # Performance optimizations
           post_install do |installer|
@@ -101,6 +101,7 @@ jobs:
             end
           end
           EOL
+          cat podfile_optimizations.txt >> ios/Podfile
         
       - name: Install CocoaPods
         run: cd ios && pod install --verbose
@@ -158,7 +159,7 @@ jobs:
       - name: Add Performance Optimizations to Gradle
         run: |
           echo "Adding performance optimizations to gradle.properties..."
-          cat >> android/gradle.properties << 'EOL'
+          cat > gradle_optimizations.txt << 'EOL'
           
           # Performance optimizations
           org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
@@ -178,6 +179,7 @@ jobs:
           hermesEnabled=true
           newArchEnabled=false
           EOL
+          cat gradle_optimizations.txt >> android/gradle.properties
         
       - name: Setup Android Signing Keys
         run: |
