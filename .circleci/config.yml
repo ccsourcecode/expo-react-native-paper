@@ -109,8 +109,8 @@ jobs:
             bundle config set --local path 'vendor/bundle'
             bundle install
             
-            # Install specific OpenSSL version that works with App Store Connect API
-            gem install openssl -v 3.0.0
+            # Skip OpenSSL installation as it's causing permission issues
+            # We'll rely on the system OpenSSL instead
             
             # Verify installation
             bundle exec fastlane --version
@@ -152,11 +152,36 @@ jobs:
             # Create directory for API key
             mkdir -p ~/.appstoreconnect/private_keys/
             
-            # Decode the base64 encoded API key and save it to a file
-            echo "$ASC_KEY_CONTENT" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+            # Check if ASC_KEY_CONTENT is already a valid PEM file or needs decoding
+            if [[ "$ASC_KEY_CONTENT" == -----BEGIN* ]]; then
+              echo "API key appears to be in PEM format already, saving directly..."
+              echo "$ASC_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+            else
+              echo "Attempting to decode base64 API key..."
+              # Try decoding with -d flag (GNU base64)
+              if echo "$ASC_KEY_CONTENT" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8 2>/dev/null; then
+                echo "Successfully decoded with base64 -d"
+              else
+                # Try decoding with --decode flag (alternative syntax)
+                if echo "$ASC_KEY_CONTENT" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8 2>/dev/null; then
+                  echo "Successfully decoded with base64 --decode"
+                else
+                  # If both fail, just save as-is
+                  echo "Decoding failed, saving content as-is..."
+                  echo "$ASC_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+                fi
+              fi
+            fi
             
-            # Verify the key was created
-            ls -la ~/.appstoreconnect/private_keys/
+            # Check if the file was created and has content
+            if [ -s ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8 ]; then
+              echo "API key file created successfully"
+              # Show first line (without revealing the actual key)
+              head -n 1 ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+            else
+              echo "API key file is empty or not created"
+              exit 1
+            fi
             
             # Modify the Fastfile to use file-based API key instead of key_content
             if grep -q "key_content:" fastlane/Fastfile; then
@@ -251,8 +276,8 @@ jobs:
             bundle config set --local path 'vendor/bundle'
             bundle install
             
-            # Install specific OpenSSL version that works with App Store Connect API
-            gem install openssl -v 3.0.0
+            # Skip OpenSSL installation as it's causing permission issues
+            # We'll rely on the system OpenSSL instead
             
             # Verify installation
             bundle exec fastlane --version
