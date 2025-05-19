@@ -92,28 +92,32 @@ jobs:
       - run:
           name: Install Ruby Dependencies
           command: |
-            # Install gems locally for the current user
-            export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/bin:$PATH"
+            # Check Ruby version
+            ruby --version
             
-            # Install fastlane and cocoapods locally
-            gem install fastlane --user-install
-            gem install cocoapods --user-install
+            # Install bundler first
+            gem install bundler --user-install
+            
+            # Create a Gemfile if it doesn't exist
+            if [ ! -f Gemfile ]; then
+              echo "source 'https://rubygems.org'" > Gemfile
+              echo "gem 'fastlane'" >> Gemfile
+              echo "gem 'cocoapods'" >> Gemfile
+            fi
+            
+            # Install gems via bundler
+            bundle config set --local path 'vendor/bundle'
+            bundle install
             
             # Verify installation
-            echo "Fastlane version: $(fastlane --version)"
-            echo "CocoaPods version: $(pod --version)"
+            bundle exec fastlane --version
+            bundle exec pod --version
+          working_directory: .
 
       - run:
           name: Setup iOS Signing Configuration
           command: |
-            # Set gem path for commands
-            export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/bin:$PATH"
-            
-            # Set Ruby version explicitly for rbenv
-            rbenv global 3.3.0
-            
+            # Remove rbenv references
             chmod +x fastlane/setup-ios-signing.sh
             ./fastlane/setup-ios-signing.sh
             
@@ -129,12 +133,8 @@ jobs:
       - run:
           name: Install CocoaPods with Performance Optimizations
           command: |
-            # Set gem path for commands
-            export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/bin:$PATH"
-            
-            # Install pods without modifying the Podfile
-            cd ios && pod install --verbose
+            # Install pods using bundler
+            cd ios && bundle exec pod install --verbose
           working_directory: .
 
       - save_cache:
@@ -146,15 +146,9 @@ jobs:
       - run:
           name: Deploy to TestFlight
           command: |
-            # Set gem path for commands
-            export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/bin:$PATH"
-            
-            # Set Ruby version explicitly for rbenv
-            rbenv global 3.3.0
-            
+            # Use bundle exec for fastlane
             cd fastlane
-            fastlane ios beta
+            bundle exec fastlane ios beta
           environment:
             ASC_KEY_ID: ${ASC_KEY_ID}
             ASC_ISSUER_ID: ${ASC_ISSUER_ID}
@@ -208,21 +202,27 @@ jobs:
       - run:
           name: Install Ruby Dependencies
           command: |
-            # Install gems locally for the current user
-            export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/bin:$PATH"
-            
-            # Set Ruby version explicitly for rbenv
-            echo "Using Ruby from rbenv:"
-            rbenv versions
-            rbenv global 3.3.0
+            # Check Ruby version
             ruby --version
             
-            # Install fastlane locally
-            gem install fastlane --user-install
+            # Install bundler first
+            gem install bundler --user-install
+            
+            # Create a Gemfile if it doesn't exist
+            if [ ! -f Gemfile ]; then
+              echo "source 'https://rubygems.org'" > Gemfile
+              echo "gem 'fastlane'" >> Gemfile
+              echo "gem 'cocoapods'" >> Gemfile
+            fi
+            
+            # Install gems via bundler
+            bundle config set --local path 'vendor/bundle'
+            bundle install
             
             # Verify installation
-            echo "Fastlane version: $(fastlane --version)"
+            bundle exec fastlane --version
+            bundle exec pod --version
+          working_directory: .
 
       - run:
           name: Install Ninja and CMake Dependencies
@@ -267,25 +267,16 @@ jobs:
       - run:
           name: Setup Android Signing Keys
           command: |
-            # Set gem path for commands
-            export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/bin:$PATH"
-            
+            # Remove rbenv references
             chmod +x fastlane/setup-android-keys.sh
             ./fastlane/setup-android-keys.sh
             
       - run:
           name: Deploy to Play Store Beta
           command: |
-            # Set gem path for commands
-            export GEM_HOME="$HOME/.gem"
-            export PATH="$GEM_HOME/bin:$PATH"
-            
-            # Set Ruby version explicitly for rbenv
-            rbenv global 3.3.0
-            
+            # Use bundle exec for fastlane
             cd fastlane
-            fastlane android beta
+            bundle exec fastlane android beta
           environment:
             ANDROID_KEYSTORE_FILE: ${ANDROID_KEYSTORE_FILE}
             ANDROID_KEYSTORE_PASSWORD: ${ANDROID_KEYSTORE_PASSWORD}
