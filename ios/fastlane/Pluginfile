@@ -1,1 +1,2 @@
-gem 'fastlane-plugin-dotenv' 
+# Fastlane plugins
+# No plugins needed - dotenv will be loaded from Gemfile 
