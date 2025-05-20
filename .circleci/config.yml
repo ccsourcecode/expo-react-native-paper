@@ -32,6 +32,8 @@ jobs:
       xcode: 15.4.0
     environment:
       FL_OUTPUT_DIR: output
+      # NOTE: Make sure to set IOS_CERTIFICATE_PASSWORD as an environment variable in CircleCI project settings
+      # This is needed for the certificate import step in fastlane
 
     steps:
       - checkout

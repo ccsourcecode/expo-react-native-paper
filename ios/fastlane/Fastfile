@@ -36,53 +36,51 @@ platform :ios do
         # Retrieve signing certificate from file
         import_certificate(
             certificate_path: "PrivateKey.p12",
-            keychain_name: ENV["MATCH_KEYCHAIN_NAME"]
+            keychain_name: "fastlane_tmp_keychain",
+            certificate_password: ENV["IOS_CERTIFICATE_PASSWORD"] # Add environment variable for certificate password
         )
 
         # Import mobile provisioning profile from app store
         get_provisioning_profile(
             filename: "distribution.mobileprovision",
-            # Replace provisioning_name with your provisioning profile name
-            provisioning_name: "[provisioning_name]",
-            ignore_profiles_with_different_name: true,
-            readonly: true,
+            app_identifier: "com.mymail.exporeactnativepaper", # Use the app identifier from Appfile
+            team_id: "84eab49f-6788-427b-b7ce-a1a8383214fc", # Use team_id from Appfile
+            readonly: false, # Allow creating new provisioning profile if needed
             api_key: api_key
         )
 
         # Get latest build number
         previous_build_number = latest_testflight_build_number(
+            app_identifier: "com.mymail.exporeactnativepaper",
             api_key: api_key
         )
 
         # Increment build number
         increment_build_number(
-            # Replace xcodeproj
-            xcodeproj: "AppName.xcodeproj",
+            xcodeproj: "ExpoReactNativePaper.xcodeproj", # Update with your actual project name
             build_number: previous_build_number + 1
         )
 
         # Disable automatic code signing, so the signing certificate on the filesystem can be used
         update_code_signing_settings(
             use_automatic_signing: false,
-            # Replace xcodeproj, bundle_identifier and profile_name
-            path: "AppName.xcodeproj",
-            bundle_identifier: "org.sample.mobileapp",
-            profile_name: "AppName",
+            path: "ExpoReactNativePaper.xcodeproj", # Update with your actual project name
+            bundle_identifier: "com.mymail.exporeactnativepaper",
+            profile_name: "distribution",
         )
 
         # Build the iOS app
         build_app(
-            # replace workspace, scheme provisioningProfiles[0] and codesigning_identity
-            workspace: "AppName.xcworkspace",
-            scheme: "AppName",
+            workspace: "ExpoReactNativePaper.xcworkspace", # Update with your actual workspace name
+            scheme: "ExpoReactNativePaper", # Update with your actual scheme name
             skip_profile_detection: true,
             export_method: "app-store",
             export_options: {
                 provisioningProfiles: {
-                    "org.sample.mobileapp" => "AppName",
+                    "com.mymail.exporeactnativepaper" => "distribution",
                 }
             },
-            codesigning_identity: "iPhone Distribution: Org (Team ID)"
+            codesigning_identity: "iPhone Distribution"
         )
 
         # Upload app to TestFlight, skipping waiting for build processing to reduce CI credit waste
