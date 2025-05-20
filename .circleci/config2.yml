@@ -1,0 +1,117 @@
+version: 2.1
+
+orbs:
+  node: circleci/node@7.1.0
+
+jobs:
+  test-node:
+    executor: node/default
+    environment:
+      JEST_JUNIT_OUTPUT_DIR: ./test-results/
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+      - run:
+          command: npm install jest-junit --ignore-workspace-root-check
+      - store_test_results:
+          path: ./test-results/
+
+  build-ios:
+    macos:
+      xcode: 15.4.0
+    steps:
+      - checkout
+      - run:
+          name: Check Node Version
+          command: node --version
+      - node/install:
+          node-version: '24.0.2'
+      - run:
+          name: Install node modules
+          command: npm i
+      - run:
+          name: Install Ruby 3.3.0
+          command: |
+            brew install rbenv
+            rbenv install 3.3.0
+            rbenv global 3.3.0
+            rbenv rehash
+            ruby -v
+      - run:
+          name: Install Bundler 2.6.9
+          command: gem install bundler -v 2.6.9
+      - run:
+          name: Install Fastlane
+          command: gem install fastlane -v '>= 2.227.2'
+      - run:
+          name: Bundle install
+          command: bundle install
+          working_directory: ios
+      - run:
+          name: Run tests and upload to TestFlight
+          command: bundle exec fastlane uploadtestflight
+          working_directory: ios
+
+  build-ruby:
+    docker:
+      - image: circleci/ruby:3.4.3
+    steps:
+      - checkout
+      - run:
+          name: Install Bundler
+          command: gem install bundler -v 2.4.22
+      - run:
+          name: Install Fastlane Gem
+          command: gem install fastlane -v '>= 2.227.2'
+      - run:
+          name: Install Fastlane
+          command: bundle install
+
+  build-android:
+    docker:
+      - image: cimg/android:2025.04.1-node
+        environment:
+          BUNDLE_PATH: vendor/bundle
+          JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: Decrypt Keystore File
+          command: openssl aes-256-cbc -d -in android/app/release.keystore.enc -out android/app/release.keystore -k ENCRYPTION_KEY
+      - run:
+          name: Install Java 21
+          command: sudo apt-get update && sudo apt-get install -y openjdk-21-jdk
+      - run:
+          name: Set JAVA_HOME
+          command: echo 'export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64' >> $BASH_ENV
+      - run:
+          name: Install Node.js
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      - run:
+          name: Check Node Version
+          command: node --version
+      - node/install:
+          node-version: '24.0.2'
+      - run:
+          name: Install node modules
+          command: npm i
+      - run:
+          name: Chmod permissions
+          command: sudo chmod +x ./gradlew
+          working_directory: android
+      - run:
+          name: Run tests and upload to Play Store
+          command: fastlane deploy_to_production
+          working_directory: android
+
+
+workflows:
+  build-and-test:
+    jobs:
+      - build-ios
+      - build-ruby
+      - build-android

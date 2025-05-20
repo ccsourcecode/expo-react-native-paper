@@ -5,3 +5,4 @@
 # For more information about the Appfile, see:
 #     https://docs.fastlane.tools/advanced/#appfile
 package_name("com.mymail.exporeactnativepaper")
+json_key_file("/home/cedric/Downloads/google_play_console_zippy-aurora-460407-n9-9d770fdceaa8.json") # The path to your private key file
