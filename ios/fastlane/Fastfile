@@ -36,7 +36,7 @@ platform :ios do
         # Retrieve signing certificate from file
         import_certificate(
             certificate_path: "PrivateKey.p12",
-            keychain_name: "fastlane_tmp_keychain",
+            # keychain_name: "fastlane_tmp_keychain",
             certificate_password: ""
             #certificate_password: ENV["IOS_CERTIFICATE_PASSWORD"] # Add environment variable for certificate password
         )
