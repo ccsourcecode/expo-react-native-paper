@@ -8,8 +8,9 @@
 # match the bundle identifier you chose during the Expo setup
 # refer to app.json
 app_identifier("com.mymail.exporeactnativepaper") # The bundle identifier of your app
-
+apple_id(ENV["APPLE_ID"]) # Your Apple email address
 # Use the 'Member Center' link above, then click on 'Membership' on the left - your team id is there.
 # https://appstoreconnect.apple.com/access/users
-itc_team_id("C597KDM3TS") # App Store Connect Team ID
-team_id("84eab49f-6788-427b-b7ce-a1a8383214fc") # Developer ID
+itc_team_id(ENV["ITUNES_TEAM_ID") # App Store Connect Team ID
+team_id(ENV["APPSTORE_TEAM_ID"]) # Developer ID
+

@@ -221,7 +221,7 @@ PLATFORMS
   x86_64-linux-gnu
 
 DEPENDENCIES
-  fastlane
+  fastlane (~> 2.227)
 
 BUNDLED WITH
    2.6.9

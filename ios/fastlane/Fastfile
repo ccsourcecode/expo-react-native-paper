@@ -1,98 +1,78 @@
-# This file contains the fastlane.tools configuration
-# You can find the documentation at https://docs.fastlane.tools
-#
-# For a list of all available actions, check out
-#
-#     https://docs.fastlane.tools/actions
-#
-# For a list of all available plugins, check out
-#
-#     https://docs.fastlane.tools/plugins/available-plugins
-#
+######## IOS CONFIGURATIONS
+# If you want to make the build automatically available to external groups,
+# add the name of the group to the array below, after "App Store Connect Users"
+groups = ENV["External_Tests_group_name"]
+workspace = ENV["WORKSPACE"]
+project = ENV["PROJECT"]
+slack_weebhook_url = ENV["SLACK_WEBHOOK_URL"]
 
-# Uncomment the line if you want fastlane to automatically update itself
-# update_fastlane
+# If you build for multiple environments, you might wanna set this specifically on build_app
+configuration = ENV["CONFIGURATION"]
+scheme = ENV["SCHEME"]
+export_method = ENV["EXPORT_METHOD"]
+key_id = ENV["APPSTORE_TEAM_KEY_ID"] # The key id of the p8 file
+issuer_id = ENV["APPSTORE_TEAM_ISSUER_ID"] # issuer id on appstore connect
+key_filepath = ENV["KEY_FILEPATH"] # The path to p8 file generated on appstore connect
+######## END IOS CONFIGURATIONS
 
-# Opt out of usage metrics if desired
-# opt_out_usage
+
 
 default_platform(:ios)
 
 platform :ios do
-    before_all do
-        setup_circle_ci
-        require 'dotenv'
-        Dotenv.load('../.env')
-    end
+  desc "Push a new build to TestFlight"
 
-    desc "Push a new beta build to TestFlight"
-    lane :beta do
-        # Retrieve the api key from key file
-        api_key = app_store_connect_api_key(
-            # Replace key_id and issuer_id with your api key key and issuer IDs
-            # https://appstoreconnect.apple.com/access/integrations/api
-            key_id: "5K4CR3D7P6",
-            issuer_id: "84eab49f-6788-427b-b7ce-a1a8383214fc",
-            key_filepath: "AppStoreConnectApiKey.p8",
-            duration: 1000,
-            in_house: false
-        )
+  lane :build_and_release do
+    setup_ci
+    app_identifier = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+    api_key = app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_filepath: key_filepath,
+      in_house: true
+    )
 
-        # Retrieve signing certificate from file
-        import_certificate(
-            certificate_path: "distribution.p12",
-            keychain_name: ENV["MATCH_KEYCHAIN_NAME"],
-            certificate_password: ""
-            #certificate_password: ENV["IOS_CERTIFICATE_PASSWORD"] # Add environment variable for certificate password
-        )
+    latest_build_number = latest_testflight_build_number(
+        api_key: api_key,
+        app_identifier: app_identifier
+    )
+    increment_build_number(
+        build_number: (latest_build_number + 1),
+    )
 
-        # Import mobile provisioning profile from app store
-        get_provisioning_profile(
-            filename: "distribution.mobileprovision",
-            app_identifier: "com.mymail.exporeactnativepaper", # Use the app identifier from Appfile
-            team_id: "84eab49f-6788-427b-b7ce-a1a8383214fc", # Use team_id from Appfile
-            readonly: false, # Allow creating new provisioning profile if needed
-            api_key: api_key
-        )
 
-        # Get latest build number
-        previous_build_number = latest_testflight_build_number(
-            app_identifier: "com.mymail.exporeactnativepaper",
-            api_key: api_key
-        )
+    clear_derived_data
+    match(api_key: api_key)
+    
+    gym(
+      scheme: scheme,
+      configuration: configuration,
+      export_options: {
+        method: export_method,
+        compile_bitcode: true
+      }
+    )
 
-        # Increment build number
-        increment_build_number(
-            xcodeproj: "ExpoReactNativePaper.xcodeproj", # Update with your actual project name
-            build_number: previous_build_number + 1
-        )
+    pilot(
+      changelog: "Build #{latest_build_number + 1}",
+      api_key: api_key,
+      app_identifier: app_identifier,
+      distribute_external: true,
+      groups: groups,
+    )
 
-        # Disable automatic code signing, so the signing certificate on the filesystem can be used
-        update_code_signing_settings(
-            use_automatic_signing: false,
-            path: "ExpoReactNativePaper.xcodeproj", # Update with your actual project name
-            bundle_identifier: "com.mymail.exporeactnativepaper",
-            profile_name: "distribution",
-        )
+    slack(
+      slack_url: slack_weebhook_url,
+      message: "Build #{latest_build_number + 1} is available on TestFlight",
+      channel: "#your-channel",
+      default_payloads: [],
+      success: true,
+      payload: {
+        'Build Date' => Time.now,
+        'Build Number' => latest_build_number + 1
+      }
+    )
 
-        # Build the iOS app
-        build_app(
-            workspace: "ExpoReactNativePaper.xcworkspace", # Update with your actual workspace name
-            scheme: "ExpoReactNativePaper", # Update with your actual scheme name
-            skip_profile_detection: true,
-            export_method: "app-store",
-            export_options: {
-                provisioningProfiles: {
-                    "com.mymail.exporeactnativepaper" => "distribution",
-                }
-            },
-            codesigning_identity: "iPhone Distribution"
-        )
-
-        # Upload app to TestFlight, skipping waiting for build processing to reduce CI credit waste
-        upload_to_testflight(
-            skip_waiting_for_build_processing: true,
-            api_key: api_key
-        )
-    end
+    clean_build_artifacts
+  end
 end

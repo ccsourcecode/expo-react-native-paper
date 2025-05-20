@@ -16,37 +16,29 @@
 default_platform(:android)
 
 platform :android do
-    desc "Deploy a new version to the Google Play Beta track"
-    lane :beta do
-        # Grab the latest build number from the Play Store
-        previous_build_number = google_play_track_version_codes(
-            track: "internal",
-            json_key: "#{Dir.pwd}/play-store-credentials.json"
-        )[0]
+  desc "Upload to Closed Test Alpha Track"
+    lane :upload_to_closed_test_alpha do
+        gradle(task: 'clean')
+        previous_build_number = google_play_track_version_codes(track: "alpha")[0]
+        current_build_number = previous_build_number + 1
 
-        # Increment the build number
-        increment_version_code(
-            gradle_file_path: "app/build.gradle",
-            version_code: previous_build_number + 1
-        )
-
-        # Build a release version of the app
         gradle(
-            task: "clean assembleRelease",
-            print_command: false,
-            properties: {
-                "android.injected.signing.store.file" => "#{Dir.pwd}/example-app.keystore",
-                "android.injected.signing.store.password" => ENV["ANDROID_SIGNING_KEY_PASSWORD"],
-                # replace alias with your signing key alias
-                "android.injected.signing.key.alias" => "[example-app]",
-                "android.injected.signing.key.password" => ENV["ANDROID_SIGNING_KEY_PASSWORD"],
-            }
+          task: 'bundle',
+          build_type: 'Release',
+          print_command: false,
+          properties: {
+            "android.injected.signing.store.file" => ENV["ANDROID_SIGNING_KEY_STORE"],
+            "android.injected.signing.store.password" => ENV["ANDROID_SIGNING_KEY_STORE_PASSWORD"],
+            "android.injected.signing.key.alias" => ENV["ANDROID_SIGNING_KEY_ALIAS"],
+            "android.injected.signing.key.password" => ENV["ANDROID_SIGNING_KEY_PASSWORD"],
+            "android.injected.version.code" => current_build_number
+          }
         )
-
-        # Upload the app to the Play Store
         upload_to_play_store(
-            track: "internal",
-            json_key: "#{Dir.pwd}/play-store-credentials.json"
-        )
-    end
+          track: "alpha",
+          skip_upload_apk: true,
+          aab:"/app/build/outputs/bundle/release/app-prod-release.aab")
+        end
 end
+
+
