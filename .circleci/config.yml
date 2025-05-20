@@ -2,7 +2,7 @@ version: 2.1
 jobs:
   react-native-test:
     docker:
-      - image: cimg/node:20.20.0
+      - image: cimg/node:24.0.2
 
     steps:
       - checkout
