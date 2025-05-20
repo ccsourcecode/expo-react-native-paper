@@ -60,11 +60,19 @@ jobs:
           key: pods-v1-{{ checksum "ios/Podfile.lock" }}-{{ arch }}
 
       - run:
-          command: pod install
+          name: Install CocoaPods
+          command: |
+            gem install cocoapods
+            rbenv global 3.3.0
+            rbenv rehash
           working_directory: ios
 
       - run:
           command: bundle install
+          working_directory: ios
+
+      - run:
+          command: pod install
           working_directory: ios
 
       - save_cache:
