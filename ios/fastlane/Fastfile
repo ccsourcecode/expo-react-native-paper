@@ -1,0 +1,94 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+platform :ios do
+    before_all do
+        setup_circle_ci
+    end
+
+    desc "Push a new beta build to TestFlight"
+    lane :beta do
+        # Retrieve the api key from key file
+        api_key = app_store_connect_api_key(
+            # Replace key_id and issuer_id with your api key key and issuer IDs
+            # https://appstoreconnect.apple.com/access/integrations/api
+            key_id: "5K4CR3D7P6",
+            issuer_id: "84eab49f-6788-427b-b7ce-a1a8383214fc",
+            key_filepath: "AppStoreConnectApiKey.p8",
+            duration: 1000,
+            in_house: false
+        )
+
+        # Retrieve signing certificate from file
+        import_certificate(
+            certificate_path: "PrivateKey.p12",
+            keychain_name: ENV["MATCH_KEYCHAIN_NAME"]
+        )
+
+        # Import mobile provisioning profile from app store
+        get_provisioning_profile(
+            filename: "distribution.mobileprovision",
+            # Replace provisioning_name with your provisioning profile name
+            provisioning_name: "[provisioning_name]",
+            ignore_profiles_with_different_name: true,
+            readonly: true,
+            api_key: api_key
+        )
+
+        # Get latest build number
+        previous_build_number = latest_testflight_build_number(
+            api_key: api_key
+        )
+
+        # Increment build number
+        increment_build_number(
+            # Replace xcodeproj
+            xcodeproj: "AppName.xcodeproj",
+            build_number: previous_build_number + 1
+        )
+
+        # Disable automatic code signing, so the signing certificate on the filesystem can be used
+        update_code_signing_settings(
+            use_automatic_signing: false,
+            # Replace xcodeproj, bundle_identifier and profile_name
+            path: "AppName.xcodeproj",
+            bundle_identifier: "org.sample.mobileapp",
+            profile_name: "AppName",
+        )
+
+        # Build the iOS app
+        build_app(
+            # replace workspace, scheme provisioningProfiles[0] and codesigning_identity
+            workspace: "AppName.xcworkspace",
+            scheme: "AppName",
+            skip_profile_detection: true,
+            export_method: "app-store",
+            export_options: {
+                provisioningProfiles: {
+                    "org.sample.mobileapp" => "AppName",
+                }
+            },
+            codesigning_identity: "iPhone Distribution: Org (Team ID)"
+        )
+
+        # Upload app to TestFlight, skipping waiting for build processing to reduce CI credit waste
+        upload_to_testflight(
+            skip_waiting_for_build_processing: true,
+            api_key: api_key
+        )
+    end
+end

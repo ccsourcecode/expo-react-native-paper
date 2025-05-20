@@ -1,0 +1,15 @@
+# app_identifier("[[APP_IDENTIFIER]]") # The bundle identifier of your app
+# apple_id("[[APPLE_ID]]") # Your Apple Developer Portal username
+
+
+# For more information about the Appfile, see:
+#     https://docs.fastlane.tools/advanced/#appfile
+
+# match the bundle identifier you chose during the Expo setup
+# refer to app.json
+app_identifier("com.mymail.exporeactnativepaper") # The bundle identifier of your app
+
+# Use the 'Member Center' link above, then click on 'Membership' on the left - your team id is there.
+# https://appstoreconnect.apple.com/access/users
+itc_team_id("C597KDM3TS") # App Store Connect Team ID
+team_id("84eab49f-6788-427b-b7ce-a1a8383214fc") # Developer ID

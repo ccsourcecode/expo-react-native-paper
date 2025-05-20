@@ -1,237 +1,149 @@
 version: 2.1
-
-orbs:
-  node: circleci/node@5
-  macos: circleci/macos@2.0.0
-
 jobs:
-  test-node:
-    executor: node/default
-    environment:
-      JEST_JUNIT_OUTPUT_DIR: ./test-results/
+  react-native-test:
+    docker:
+      - image: cimg/node:20.19.2
+
     steps:
       - checkout
-      - node/install-packages:
-          pkg-manager: npm
-      - run:
-          command: npm install jest-junit --ignore-workspace-root-check
-      - store_test_results:
-          path: ./test-results/
 
-  build-ios:
+      - restore_cache:
+          key: yarn-v1-{{ checksum "yarn.lock" }}-{{ arch }}
+
+      - restore_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+
+      - run: yarn install
+      - run: yarn test
+      - run: yarn tsc
+
+      - save_cache:
+          key: yarn-v1-{{ checksum "yarn.lock" }}-{{ arch }}
+          paths:
+            - ~/.cache/yarn
+
+      - save_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+          paths:
+            - node_modules
+
+  macos-build-and-deploy:
     macos:
-      xcode: "15.4.0"
+      xcode: 13.4.1
     environment:
       FL_OUTPUT_DIR: output
-      FASTLANE_SKIP_UPDATE_CHECK: "true"
-      FASTLANE_HIDE_CHANGELOG: "true"
-      FASTLANE_DISABLE_COLORS: "true"
-      FASTLANE_SKIP_ACTION_SUMMARY: "true"
-    steps:
-      - checkout
-      - run:
-          name: Print Environment Variables
-          command: |
-            echo "============ ENVIRONMENT VARIABLES ============"
-            echo "Required environment variables for iOS build:"
-            echo "APPLE_TEAM_ID: ${APPLE_TEAM_ID:+set (value hidden)}"
-            echo "ASC_KEY_ID: ${ASC_KEY_ID:+set (value hidden)}"
-            echo "ASC_ISSUER_ID: ${ASC_ISSUER_ID:+set (value hidden)}"
-            echo "ASC_KEY_CONTENT: ${ASC_KEY_CONTENT:+set (value hidden)}"
-            echo "ASC_KEY_FILEPATH: ${ASC_KEY_FILEPATH:+set (value hidden)}"
-            echo "FASTLANE_USER: ${FASTLANE_USER:+set (value hidden)}"
-            echo "FASTLANE_PASSWORD: ${FASTLANE_PASSWORD:+set (value hidden)}"
-            echo "FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD:+set (value hidden)}"
-            echo "MATCH_PASSWORD: ${MATCH_PASSWORD:+set (value hidden)}"
-            echo "MATCH_READONLY: ${MATCH_READONLY}"
-            echo "FL_OUTPUT_DIR: ${FL_OUTPUT_DIR}"
-            echo "=============================================="
-      - run:
-          name: Check Node Version
-          command: node --version
-      - node/install:
-          node-version: '22.15.0'
-      - run:
-          name: Install node modules
-          command: npm i
-      - macos/switch-ruby:
-          version: "3.1.3"
-      - run:
-          name: Install dependencies for native gem compilation
-          command: |
-            # Install Xcode command line tools
-            xcode-select --install || true
-            # Fix environment for native gem compilation
-            export ARCHFLAGS="-arch $(uname -m)"
-            export CFLAGS="-Wno-error=implicit-function-declaration"
-            # Install json gem separately with specific flags
-            gem install json -- --use-system-libraries
-      - run:
-          name: Install Bundler
-          command: gem install bundler
-      - restore_cache:
-          keys:
-            - gem-cache-v1-{{ checksum "Gemfile.lock" }}
-      - run:
-          name: Bundle install
-          command: |
-            # Use system libraries for native extensions
-            bundle config build.nokogiri --use-system-libraries
-            bundle config build.json --use-system-libraries
-            bundle config build.sysrandom --use-system-libraries
-            # Skip installing documentation
-            bundle config set --local without 'development test'
-            # Install gems
-            bundle install
-      - save_cache:
-          key: gem-cache-v1-{{ checksum "Gemfile.lock" }}
-          paths:
-            - vendor/bundle
-      - run:
-          name: List fastlane directory contents
-          command: ls -la fastlane/
-      - run:
-          name: Run tests and upload to TestFlight
-          command: |
-            # Set non-interactive mode explicitly
-            export FASTLANE_OPT_OUT_USAGE=1
-            export FASTLANE_SKIP_UI=1
-            
-            # Run fastlane from the root directory where Fastfile is located
-            bundle exec fastlane ios uploadtestflight --verbose
-          no_output_timeout: 30m
 
-  build-ruby:
-    docker:
-      - image: cimg/ruby:3.1.3
     steps:
       - checkout
       - restore_cache:
-          keys:
-            - gem-cache-v1-{{ checksum "Gemfile.lock" }}
-      - run:
-          name: Install Bundler
-          command: gem install bundler
-      - run:
-          name: Bundle install
-          command: bundle install
+          key: yarn-v1-{{ checksum "yarn.lock" }}-{{ arch }}
+
+      - restore_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+
+      - run: yarn install
+
       - save_cache:
-          key: gem-cache-v1-{{ checksum "Gemfile.lock" }}
+          key: yarn-v1-{{ checksum "yarn.lock" }}-{{ arch }}
+          paths:
+            - ~/.cache/yarn
+
+      - save_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+          paths:
+            - node_modules
+
+      - restore_cache:
+          key: bundle-v1-{{ checksum "ios/Gemfile.lock" }}-{{ arch }}
+
+      - restore_cache:
+          key: pods-v1-{{ checksum "ios/Podfile.lock" }}-{{ arch }}
+
+      - run:
+          command: pod install
+          working_directory: ios
+
+      - run:
+          command: bundle install
+          working_directory: ios
+
+      - save_cache:
+          key: bundle-v1-{{ checksum "ios/Gemfile.lock" }}-{{ arch }}
           paths:
             - vendor/bundle
 
-  build-android:
-    docker:
-      - image: cimg/android:2024.01
-        environment:
-          BUNDLE_PATH: vendor/bundle
-          # Update to use Java 17 instead of Java 11
-          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
-          FASTLANE_SKIP_UPDATE_CHECK: "true"
-          FASTLANE_HIDE_CHANGELOG: "true"
-          FASTLANE_DISABLE_COLORS: "true"
-          FASTLANE_SKIP_ACTION_SUMMARY: "true"
-    working_directory: ~/repo
-    steps:
-      - checkout
-      - run:
-          name: Print Environment Variables
-          command: |
-            echo "============ ENVIRONMENT VARIABLES ============"
-            echo "Required environment variables for Android build:"
-            echo "ANDROID_KEYSTORE_BASE64: ${ANDROID_KEYSTORE_BASE64:+set (value hidden)}"
-            echo "ANDROID_KEYSTORE_PASSWORD: ${ANDROID_KEYSTORE_PASSWORD:+set (value hidden)}"
-            echo "ANDROID_KEY_ALIAS: ${ANDROID_KEY_ALIAS:+set (value hidden)}"
-            echo "ANDROID_KEY_PASSWORD: ${ANDROID_KEY_PASSWORD:+set (value hidden)}"
-            echo "GOOGLE_PLAY_JSON_KEY: ${GOOGLE_PLAY_JSON_KEY:+set (value hidden)}"
-            echo "JAVA_HOME: ${JAVA_HOME}"
-            echo "=============================================="
-      - run:
-          name: Install Android SDK 35
-          command: |
-            sudo apt-get update
-            yes | sudo sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - run:
-          name: Install Ninja build tool
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y ninja-build
-            ninja --version
-      - run:
-          name: Setup Android Keystore
-          command: |
-            # Create directory for keystore
-            mkdir -p android/app
-            
-            # Create keystore file from environment variable
-            echo $ANDROID_KEYSTORE_BASE64 | base64 -d > android/app/release.keystore
-            
-            # Verify keystore file was created
-            if [ -f "android/app/release.keystore" ]; then
-              echo "Keystore file created successfully"
-              ls -la android/app/release.keystore
-            else
-              echo "Failed to create keystore file"
-              exit 1
-            fi
-      - run:
-          name: Install Java 17
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y openjdk-17-jdk
-      - run:
-          name: Set JAVA_HOME
-          command: echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> $BASH_ENV
-      - run:
-          name: Install CMake
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y cmake
-            cmake --version
-      - node/install:
-          node-version: '22.15.0'
-      - run:
-          name: Install node modules
-          command: npm i
-      - restore_cache:
-          keys:
-            - gem-cache-v1-{{ checksum "Gemfile.lock" }}
-      - run:
-          name: Install Bundler
-          command: gem install bundler
-      - run:
-          name: Bundle install
-          command: bundle install
       - save_cache:
-          key: gem-cache-v1-{{ checksum "Gemfile.lock" }}
+          key: pods-v1-{{ checksum "ios/Podfile.lock" }}-{{ arch }}
           paths:
-            - vendor/bundle
+            - ios/Pods
+
       - run:
-          name: Chmod permissions
-          command: sudo chmod +x ./gradlew
+          name: Fastlane deploy TestFlight
+          command: ./fastlane/deploy.sh
+          working_directory: ios
+
+# replace example-app with repository name
+  android-build-and-deploy:
+    working_directory: ~/example-app
+    docker:
+      - image: cimg/android:2025.04.1-node
+    steps:
+      - checkout:
+          path: ~/example-app
+
+      - attach_workspace:
+          at: ~/example-app
+
+      - restore_cache:
+          key: yarn-v1-{{ checksum "yarn.lock" }}-{{ arch }}
+
+      - restore_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+
+      - run: yarn install
+
+      - save_cache:
+          key: yarn-v1-{{ checksum "yarn.lock" }}-{{ arch }}
+          paths:
+            - ~/.cache/yarn
+
+      - save_cache:
+          key: node-v1-{{ checksum "package.json" }}-{{ arch }}
+          paths:
+            - node_modules
+
+      - restore_cache:
+          key: bundle-v1-{{ checksum "android/Gemfile.lock" }}-{{ arch }}
+
+      - run:
+          command: bundle install
           working_directory: android
+
+      - save_cache:
+          key: bundle-v1-{{ checksum "android/Gemfile.lock" }}-{{ arch }}
+          paths:
+            - vendor/bundle
+
       - run:
-          name: List fastlane directory contents
-          command: ls -la fastlane/
-      - run:
-          name: Run tests and upload to Play Store
-          command: |
-            # Set non-interactive mode explicitly
-            export FASTLANE_OPT_OUT_USAGE=1
-            export FASTLANE_SKIP_UI=1
-            
-            # Set explicit path to keystore file (absolute path)
-            export ANDROID_KEYSTORE_PATH=$(pwd)/android/app/release.keystore
-            echo "Using keystore at: $ANDROID_KEYSTORE_PATH"
-            ls -la $ANDROID_KEYSTORE_PATH
-            
-            # Run fastlane from the root directory where Fastfile is located
-            bundle exec fastlane android deploy_to_production --verbose
-          no_output_timeout: 30m
+          name: Fastlane deploy beta
+          working_directory: android
+          command: ./fastlane/deploy.sh
 
 workflows:
-  build-and-test:
+  react-native-android-ios:
     jobs:
-      - build-ios
-      - build-ruby
-      - build-android
+      - react-native-test
+      - approve_deploy_to_apple_app_store:
+          type: approval
+          requires:
+            - react-native-test
+      - approve_deploy_to_google_play_store:
+          type: approval
+          requires:
+            - react-native-test
+      - android-build-and-deploy:
+          requires:
+            - approve_deploy_to_google_play_store
+      - macos-build-and-deploy:
+          requires:
+            - approve_deploy_to_apple_app_store

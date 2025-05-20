@@ -1,66 +1,46 @@
 #!/bin/bash
 set -e
 
-# Define the project root directory
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ANDROID_DIR="$PROJECT_ROOT/android"
+# Print environment info
+echo "Running on: $(uname -a)"
+echo "Ruby version: $(ruby -v)"
+echo "Bundler version: $(bundle -v)"
 
-echo "Project root: $PROJECT_ROOT"
-echo "Android directory: $ANDROID_DIR"
+# Set up environment variables for non-interactive use
+export FASTLANE_SKIP_UPDATE_CHECK=1
+export FASTLANE_HIDE_CHANGELOG=1
+export FASTLANE_DISABLE_COLORS=1
 
-echo "Setting up Android signing keys..."
-# This script assumes that the ANDROID_SIGNING_KEY and ANDROID_PLAY_STORE_CREDENTIALS are set in environment variables
-
-# Run setup-android-keys.sh if it exists
-if [ -f "$PROJECT_ROOT/fastlane/setup-android-keys.sh" ]; then
-  chmod +x "$PROJECT_ROOT/fastlane/setup-android-keys.sh"
-  "$PROJECT_ROOT/fastlane/setup-android-keys.sh"
+# Check required environment variables
+if [ -z "$ANDROID_KEYSTORE_PATH" ] && [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+  echo "Error: Neither ANDROID_KEYSTORE_PATH nor ANDROID_KEYSTORE_BASE64 is set"
+  exit 1
 fi
 
-echo "Configuring Gradle for optimal CI performance"
-echo "Java version:"
-java -version
-
-echo "Ensuring gradlew exists and is executable..."
-if [ ! -f "$ANDROID_DIR/gradlew" ]; then
-  echo "gradlew not found! Creating gradle wrapper..."
-  cd "$ANDROID_DIR"
-  # Create gradle wrapper if it doesn't exist
-  gradle wrapper
-  cd - > /dev/null
+# Set up keystore from base64 if provided
+if [ ! -z "$ANDROID_KEYSTORE_BASE64" ]; then
+  echo "Setting up Android keystore from base64"
+  mkdir -p android/app
+  echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+  export ANDROID_KEYSTORE_PATH="$(pwd)/android/app/release.keystore"
+  echo "Keystore saved to $ANDROID_KEYSTORE_PATH"
 fi
 
-# Make sure gradlew is executable
-chmod +x "$ANDROID_DIR/gradlew"
+# Set up Google Play JSON key if provided
+if [ ! -z "$GOOGLE_PLAY_JSON_KEY" ]; then
+  echo "Setting up Google Play JSON key"
+  echo "$GOOGLE_PLAY_JSON_KEY" | base64 -d > google-play-key.json
+  export GOOGLE_PLAY_JSON_KEY_PATH="$(pwd)/google-play-key.json"
+  echo "Google Play key saved to $GOOGLE_PLAY_JSON_KEY_PATH"
+fi
 
-# Fix any deprecated Gradle properties
-echo "Fixing any deprecated Gradle properties..."
-chmod +x "$PROJECT_ROOT/fastlane/fix-gradle-properties.sh"
-"$PROJECT_ROOT/fastlane/fix-gradle-properties.sh"
+# Run fastlane
+echo "Starting Android build and deployment..."
+bundle exec fastlane android deploy_to_production
 
-echo "Gradle version:"
-cd "$ANDROID_DIR"
-./gradlew --version
+# Clean up
+if [ -f "google-play-key.json" ]; then
+  rm google-play-key.json
+fi
 
-echo "Building Android app..."
-# Add memory optimizations before building
-echo "Configuring additional memory optimizations..."
-cd "$ANDROID_DIR"
-cat >> gradle.properties << 'EOL'
-# Memory optimizations
-org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError
-org.gradle.daemon=false
-org.gradle.workers.max=1
-android.disableAutomaticComponentCreation=true
-kapt.incremental.apt=false
-# Skia optimizations
-skiko.native.dependencies.strip=false
-EOL
-
-# Split the build into separate tasks to avoid memory issues
-echo "Building app using separate tasks to avoid memory issues..."
-./gradlew clean
-./gradlew :app:bundleRelease --no-daemon --max-workers 1 -Dorg.gradle.configureondemand=true
-./gradlew :app:assembleRelease --no-daemon --max-workers 1 -Dorg.gradle.configureondemand=true
-
-echo "Android build completed successfully!" 
+echo "Android deployment completed!" 

@@ -77,3 +77,5 @@ expo-env.d.ts
 # SpecStory explanation file
 .specstory/.what-is-this.md
 .history
+android/vendor/*
+vendor/*

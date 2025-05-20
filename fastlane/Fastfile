@@ -29,10 +29,6 @@ end
 platform :ios do
   desc "Set up code signing using App Store Connect API"
   private_lane :setup_code_signing do
-    # IMPORTANT: The key_content must be properly quoted in environment variables
-    # If you're getting "invalid curve name" error, ensure your key is wrapped in quotes
-    # Example: key_content="-----BEGIN PRIVATE KEY-----\nABCDEF...\n-----END PRIVATE KEY-----"
-    
     # Print key format for debugging (don't worry, this only shows the format, not the actual key)
     UI.message("Key format check - first 20 chars: #{ENV["ASC_KEY_CONTENT"] ? ENV["ASC_KEY_CONTENT"][0..20] : 'nil'}")
     UI.message("Key starts with proper header: #{ENV["ASC_KEY_CONTENT"] && ENV["ASC_KEY_CONTENT"].start_with?("-----BEGIN") ? 'Yes' : 'No'}")
@@ -72,14 +68,29 @@ platform :ios do
       )
     end
     
-    # Configure Xcode project for automatic signing
-    update_code_signing_settings(
-      use_automatic_signing: true,
-      path: "ios/exporeactnativepaper.xcodeproj",
-      team_id: ENV["APPLE_TEAM_ID"],
-      targets: ["exporeactnativepaper"], # Update with your main target name
-      build_configurations: ["Release", "Debug"]
-    )
+    # Try using match for code signing if MATCH_GIT_URL is set
+    if ENV["MATCH_GIT_URL"]
+      UI.important("Using match for code signing")
+      match(
+        type: "appstore",
+        readonly: ENV["MATCH_READONLY"] || true,
+        app_identifier: ENV["APP_IDENTIFIER"] || "com.yourcompany.exporeactnativepaper",
+        git_url: ENV["MATCH_GIT_URL"],
+        git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTH"],
+        username: ENV["FASTLANE_USER"],
+        team_id: ENV["APPLE_TEAM_ID"]
+      )
+    else
+      # Configure Xcode project for automatic signing
+      UI.important("Using automatic signing")
+      update_code_signing_settings(
+        use_automatic_signing: true,
+        path: "ios/exporeactnativepaper.xcodeproj",
+        team_id: ENV["APPLE_TEAM_ID"],
+        targets: ["exporeactnativepaper"], # Update with your main target name
+        build_configurations: ["Release", "Debug"]
+      )
+    end
   end
 
   desc "Build iOS app for testing (for CI)"
@@ -91,7 +102,7 @@ platform :ios do
     UI.important("Current directory: #{Dir.pwd}")
     
     # Use the project.xcworkspace inside the xcodeproj directory
-    workspace_path = "ios/exporeactnativepaper.xcodeproj/project.xcworkspace"
+    workspace_path = Dir["ios/*.xcworkspace"].first || "ios/exporeactnativepaper.xcodeproj/project.xcworkspace"
     UI.important("Using workspace: #{workspace_path}")
     
     # Build the app with simplified configuration for CI
@@ -123,7 +134,7 @@ platform :ios do
     UI.important("Current directory: #{Dir.pwd}")
     
     # Use the project.xcworkspace inside the xcodeproj directory
-    workspace_path = "ios/exporeactnativepaper.xcodeproj/project.xcworkspace"
+    workspace_path = Dir["ios/*.xcworkspace"].first || "ios/exporeactnativepaper.xcodeproj/project.xcworkspace"
     UI.important("Using workspace: #{workspace_path}")
     
     # Increment build number
