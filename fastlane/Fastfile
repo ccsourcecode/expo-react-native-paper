@@ -4,10 +4,18 @@ before_all do
   # Set up CI environment if running on CI
   setup_ci if FastlaneCore::Helper.ci?
   
-  # iOS-specific setup
+  # iOS-specific setup - only run on iOS platform
   if FastlaneCore::Helper.ci? && lane_context[SharedValues::PLATFORM_NAME] == :ios
-    xcode_select "/Applications/Xcode-15.4.app" if File.directory?("/Applications/Xcode-15.4.app")
-    UI.important("Using Xcode version: #{`xcodebuild -version`.strip}") if system("which xcodebuild >/dev/null 2>&1")
+    begin
+      xcode_select "/Applications/Xcode-15.4.app" if File.directory?("/Applications/Xcode-15.4.app")
+      if system("which xcodebuild >/dev/null 2>&1")
+        UI.important("Using Xcode version: #{`xcodebuild -version`.strip}")
+      else
+        UI.important("xcodebuild command not available - skipping version check")
+      end
+    rescue => e
+      UI.error("Error during Xcode setup: #{e.message}")
+    end
   end
   
   # Performance optimization - disable Flipper for production builds
@@ -67,9 +75,9 @@ platform :ios do
     # Configure Xcode project for automatic signing
     update_code_signing_settings(
       use_automatic_signing: true,
-      path: "ios/ExpoReactNativePaper.xcodeproj",
+      path: "ios/exporeactnativepaper.xcodeproj",
       team_id: ENV["APPLE_TEAM_ID"],
-      targets: ["ExpoReactNativePaper"], # Update with your main target name
+      targets: ["exporeactnativepaper"], # Update with your main target name
       build_configurations: ["Release", "Debug"]
     )
   end
@@ -81,11 +89,14 @@ platform :ios do
     # Print debugging information
     UI.important("Xcode path: #{`xcode-select -p`.strip}")
     UI.important("Current directory: #{Dir.pwd}")
-    UI.important("Workspace exists: #{File.exist?('ios/exporeactnativepaper.xcworkspace')}")
+    
+    # Use the project.xcworkspace inside the xcodeproj directory
+    workspace_path = "ios/exporeactnativepaper.xcodeproj/project.xcworkspace"
+    UI.important("Using workspace: #{workspace_path}")
     
     # Build the app with simplified configuration for CI
     build_ios_app(
-      workspace: "ios/exporeactnativepaper.xcworkspace",
+      workspace: workspace_path,
       scheme: "exporeactnativepaper",
       export_method: "development", # Use development method for CI
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
@@ -110,7 +121,10 @@ platform :ios do
     # Print debugging information
     UI.important("Xcode path: #{`xcode-select -p`.strip}")
     UI.important("Current directory: #{Dir.pwd}")
-    UI.important("Workspace exists: #{File.exist?('ios/exporeactnativepaper.xcworkspace')}")
+    
+    # Use the project.xcworkspace inside the xcodeproj directory
+    workspace_path = "ios/exporeactnativepaper.xcodeproj/project.xcworkspace"
+    UI.important("Using workspace: #{workspace_path}")
     
     # Increment build number
     increment_build_number(
@@ -119,7 +133,7 @@ platform :ios do
     
     # Build the app with simplified configuration
     build_ios_app(
-      workspace: "ios/exporeactnativepaper.xcworkspace",
+      workspace: workspace_path,
       scheme: "exporeactnativepaper",
       export_method: "app-store",
       output_directory: ENV["FL_OUTPUT_DIR"] || "./build",
