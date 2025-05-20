@@ -27,12 +27,8 @@ jobs:
       FASTLANE_HIDE_CHANGELOG: "true"
       FASTLANE_DISABLE_COLORS: "true"
       FASTLANE_SKIP_ACTION_SUMMARY: "true"
-      IPHONEOS_DEPLOYMENT_TARGET: "14.0"  # Match Podfile iOS target
     steps:
       - checkout
-      - run:
-          name: Check Node Version
-          command: node --version
       - run:
           name: Print Environment Variables
           command: |
@@ -48,11 +44,11 @@ jobs:
             echo "FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD:+set (value hidden)}"
             echo "MATCH_PASSWORD: ${MATCH_PASSWORD:+set (value hidden)}"
             echo "MATCH_READONLY: ${MATCH_READONLY}"
-            echo "PROVISIONING_PROFILE_NAME: ${PROVISIONING_PROFILE_NAME:+set (value hidden)}"
-            echo "PROVISIONING_PROFILE_UUID: ${PROVISIONING_PROFILE_UUID:+set (value hidden)}"
-            echo "APP_IDENTIFIER: ${APP_IDENTIFIER:+set (value hidden)}"
             echo "FL_OUTPUT_DIR: ${FL_OUTPUT_DIR}"
             echo "=============================================="
+      - run:
+          name: Check Node Version
+          command: node --version
       - node/install:
           node-version: '22.15.0'
       - run:
@@ -61,6 +57,16 @@ jobs:
       - macos/switch-ruby:
           version: "3.1.3"
       - run:
+          name: Install dependencies for native gem compilation
+          command: |
+            # Install Xcode command line tools
+            xcode-select --install || true
+            # Fix environment for native gem compilation
+            export ARCHFLAGS="-arch $(uname -m)"
+            export CFLAGS="-Wno-error=implicit-function-declaration"
+            # Install json gem separately with specific flags
+            gem install json -- --use-system-libraries
+      - run:
           name: Install Bundler
           command: gem install bundler
       - restore_cache:
@@ -68,94 +74,22 @@ jobs:
             - gem-cache-v1-{{ checksum "Gemfile.lock" }}
       - run:
           name: Bundle install
-          command: bundle install
+          command: |
+            # Use system libraries for native extensions
+            bundle config build.nokogiri --use-system-libraries
+            bundle config build.json --use-system-libraries
+            bundle config build.sysrandom --use-system-libraries
+            # Skip installing documentation
+            bundle config set --local without 'development test'
+            # Install gems
+            bundle install
       - save_cache:
           key: gem-cache-v1-{{ checksum "Gemfile.lock" }}
           paths:
             - vendor/bundle
       - run:
-          name: Install CocoaPods dependencies
-          command: |
-            cd ios
-            pod install
-            ls -la  # List files to verify workspace creation
-      - run:
           name: List fastlane directory contents
           command: ls -la fastlane/
-      - run:
-          name: Prepare code signing environment
-          command: |
-            # Default app identifier if not set in environment
-            if [ -z "$APP_IDENTIFIER" ]; then
-              # Try to extract from Info.plist
-              if [ -f "ios/exporeactnativepaper/Info.plist" ]; then
-                APP_ID=$(grep -A1 "CFBundleIdentifier" ios/exporeactnativepaper/Info.plist | grep string | sed -E 's/.*<string>(.*)<\/string>.*/\1/')
-                if [ -n "$APP_ID" ]; then
-                  echo "Found APP_IDENTIFIER in Info.plist: $APP_ID"
-                  export APP_IDENTIFIER="$APP_ID"
-                else
-                  echo "Could not find CFBundleIdentifier in Info.plist, using default value"
-                  export APP_IDENTIFIER="com.yourcompany.exporeactnativepaper"
-                fi
-              else
-                echo "Info.plist not found, using default app identifier"
-                export APP_IDENTIFIER="com.yourcompany.exporeactnativepaper"
-              fi
-              echo "Setting APP_IDENTIFIER=$APP_IDENTIFIER"
-            fi
-            
-            # Make sure APPLE_TEAM_ID is set
-            if [ -z "$APPLE_TEAM_ID" ]; then
-              echo "ERROR: APPLE_TEAM_ID environment variable is not set!"
-              echo "Please set this in your CircleCI project settings."
-              exit 1
-            fi
-      - run:
-          name: Show Xcode project details
-          command: |
-            echo "===== LISTING PROJECT DIRECTORY STRUCTURE ====="
-            find ios -type f -name "*.pbxproj" -exec ls -la {} \;
-            
-            echo "===== CHECKING SCHEME NAMES ====="
-            cd ios
-            xcodebuild -list -workspace exporeactnativepaper.xcworkspace
-            
-            echo "===== CHECKING DEPLOYMENT TARGET ====="
-            grep -r "IPHONEOS_DEPLOYMENT_TARGET" ios/exporeactnativepaper.xcodeproj
-            
-            echo "===== XCODE VERSION ====="
-            xcodebuild -version
-            
-            echo "===== AVAILABLE SDKS ====="
-            xcodebuild -showsdks
-            
-            echo "===== PODFILE CONTENT ====="
-            cat ios/Podfile
-      - run:
-          name: Verify Xcode project setup
-          command: |
-            # Force-select the Xcode version
-            sudo xcode-select -s /Applications/Xcode-15.4.app
-            xcode-select -p
-            
-            # Check if we have valid signing capabilities
-            if [ -z "$APPLE_TEAM_ID" ]; then
-              echo "WARNING: No Apple team ID set, code signing may fail"
-            else
-              echo "Apple team ID is set, should be able to sign"
-            fi
-            
-            # Check workspace contents
-            cd ios
-            ls -la exporeactnativepaper.xcworkspace/
-            
-            # Validate bundle identifier
-            if [ -f "exporeactnativepaper/Info.plist" ]; then
-              BUNDLE_ID=$(plutil -p exporeactnativepaper/Info.plist | grep CFBundleIdentifier | awk -F'"' '{print $4}')
-              echo "Bundle identifier: $BUNDLE_ID"
-            else
-              echo "Info.plist not found"
-            fi
       - run:
           name: Run tests and upload to TestFlight
           command: |
@@ -163,20 +97,9 @@ jobs:
             export FASTLANE_OPT_OUT_USAGE=1
             export FASTLANE_SKIP_UI=1
             
-            # For CI builds, use the build lane instead of upload lane
-            # as we may not have sufficient signing credentials
-            bundle exec fastlane ios build --verbose
+            # Run fastlane from the root directory where Fastfile is located
+            bundle exec fastlane ios uploadtestflight --verbose
           no_output_timeout: 30m
-      - run:
-          name: Show build logs if failed
-          command: |
-            if [ -d "output/buildlogs" ]; then
-              echo "===== BUILD LOGS ====="
-              cat output/buildlogs/gym/exporeactnativepaper-exporeactnativepaper.log || echo "Log file not found"
-            else
-              echo "No build logs found"
-            fi
-          when: on_fail
 
   build-ruby:
     docker:
@@ -202,6 +125,7 @@ jobs:
       - image: cimg/android:2024.01
         environment:
           BUNDLE_PATH: vendor/bundle
+          # Update to use Java 17 instead of Java 11
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
           FASTLANE_SKIP_UPDATE_CHECK: "true"
           FASTLANE_HIDE_CHANGELOG: "true"
@@ -223,11 +147,28 @@ jobs:
             echo "JAVA_HOME: ${JAVA_HOME}"
             echo "=============================================="
       - run:
+          name: Install Ninja build tool
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+            ninja --version
+      - run:
           name: Setup Android Keystore
           command: |
-            # Make setup script executable and run it
-            chmod +x ./setup-keystore.sh
-            ./setup-keystore.sh
+            # Create directory for keystore
+            mkdir -p android/app
+            
+            # Create keystore file from environment variable
+            echo $ANDROID_KEYSTORE_BASE64 | base64 -d > android/app/release.keystore
+            
+            # Verify keystore file was created
+            if [ -f "android/app/release.keystore" ]; then
+              echo "Keystore file created successfully"
+              ls -la android/app/release.keystore
+            else
+              echo "Failed to create keystore file"
+              exit 1
+            fi
       - run:
           name: Install Java 17
           command: |
@@ -237,12 +178,11 @@ jobs:
           name: Set JAVA_HOME
           command: echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> $BASH_ENV
       - run:
-          name: Install Ninja build system
+          name: Install CMake
           command: |
             sudo apt-get update
-            sudo apt-get install -y ninja-build
-            # Verify ninja is installed
-            ninja --version
+            sudo apt-get install -y cmake
+            cmake --version
       - node/install:
           node-version: '22.15.0'
       - run:

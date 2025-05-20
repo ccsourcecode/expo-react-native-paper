@@ -4,10 +4,10 @@ before_all do
   # Set up CI environment if running on CI
   setup_ci if FastlaneCore::Helper.ci?
   
-  # Explicitly select Xcode version if on CircleCI
-  if FastlaneCore::Helper.ci?
+  # iOS-specific setup
+  if FastlaneCore::Helper.ci? && lane_context[SharedValues::PLATFORM_NAME] == :ios
     xcode_select "/Applications/Xcode-15.4.app" if File.directory?("/Applications/Xcode-15.4.app")
-    UI.important("Using Xcode version: #{`xcodebuild -version`.strip}")
+    UI.important("Using Xcode version: #{`xcodebuild -version`.strip}") if system("which xcodebuild >/dev/null 2>&1")
   end
   
   # Performance optimization - disable Flipper for production builds
@@ -21,77 +21,57 @@ end
 platform :ios do
   desc "Set up code signing using App Store Connect API"
   private_lane :setup_code_signing do
-    # Debug info
-    UI.important("Setting up code signing...")
-    UI.important("Running on CI: #{FastlaneCore::Helper.ci?}")
-    UI.important("Current directory: #{Dir.pwd}")
+    # IMPORTANT: The key_content must be properly quoted in environment variables
+    # If you're getting "invalid curve name" error, ensure your key is wrapped in quotes
+    # Example: key_content="-----BEGIN PRIVATE KEY-----\nABCDEF...\n-----END PRIVATE KEY-----"
     
-    # Check for code signing environment variables
-    has_api_key = !ENV["ASC_KEY_ID"].nil? && !ENV["ASC_ISSUER_ID"].nil?
-    has_api_content = !ENV["ASC_KEY_CONTENT"].nil? || !ENV["ASC_KEY_CONTENT_BASE64"].nil? || !ENV["ASC_KEY_FILEPATH"].nil?
-    has_apple_id = !ENV["FASTLANE_USER"].nil? && !ENV["FASTLANE_PASSWORD"].nil?
+    # Print key format for debugging (don't worry, this only shows the format, not the actual key)
+    UI.message("Key format check - first 20 chars: #{ENV["ASC_KEY_CONTENT"] ? ENV["ASC_KEY_CONTENT"][0..20] : 'nil'}")
+    UI.message("Key starts with proper header: #{ENV["ASC_KEY_CONTENT"] && ENV["ASC_KEY_CONTENT"].start_with?("-----BEGIN") ? 'Yes' : 'No'}")
+    UI.message("Key includes newlines (\\n): #{ENV["ASC_KEY_CONTENT"] && ENV["ASC_KEY_CONTENT"].include?('\n') ? 'Yes' : 'No'}")
     
-    UI.important("Has App Store Connect API key credentials: #{has_api_key && has_api_content}")
-    UI.important("Has Apple ID credentials: #{has_apple_id}")
-    UI.important("Team ID: #{ENV["APPLE_TEAM_ID"] || 'not set'}")
+    # Try using one of these approaches to fix the "invalid curve name" error:
     
-    begin
-      # Try App Store Connect API key auth
-      if has_api_key && has_api_content
-        UI.message("Using App Store Connect API key authentication")
-        
-        if ENV["ASC_KEY_CONTENT_BASE64"]
-          app_store_connect_api_key(
-            key_id: ENV["ASC_KEY_ID"],
-            issuer_id: ENV["ASC_ISSUER_ID"],
-            key_content: ENV["ASC_KEY_CONTENT_BASE64"],
-            is_key_content_base64: true,
-            in_house: false
-          )
-        elsif ENV["ASC_KEY_FILEPATH"]
-          app_store_connect_api_key(
-            key_id: ENV["ASC_KEY_ID"],
-            issuer_id: ENV["ASC_ISSUER_ID"],
-            key_filepath: ENV["ASC_KEY_FILEPATH"],
-            in_house: false
-          )
-        else
-          app_store_connect_api_key(
-            key_id: ENV["ASC_KEY_ID"],
-            issuer_id: ENV["ASC_ISSUER_ID"],
-            key_content: ENV["ASC_KEY_CONTENT"],
-            in_house: false
-          )
-        end
-      # Fall back to Apple ID authentication if API key doesn't work
-      elsif has_apple_id
-        UI.important("Using Apple ID authentication")
-        # No explicit action needed, fastlane will use these environment variables
-      else
-        UI.important("No valid authentication method found. Trying code signing without authentication.")
-      end
-    rescue => e
-      UI.error("Authentication error: #{e.message}")
-      UI.error("Will try to continue without authentication")
+    # Option 1: Use is_key_content_base64 if your key is base64 encoded
+    if ENV["ASC_KEY_CONTENT_BASE64"]
+      app_store_connect_api_key(
+        key_id: ENV["ASC_KEY_ID"],
+        issuer_id: ENV["ASC_ISSUER_ID"],
+        key_content: ENV["ASC_KEY_CONTENT_BASE64"],
+        is_key_content_base64: true,
+        in_house: false
+      )
+    # Option 2: Use key_filepath if you have the .p8 file
+    elsif ENV["ASC_KEY_FILEPATH"]
+      app_store_connect_api_key(
+        key_id: ENV["ASC_KEY_ID"],
+        issuer_id: ENV["ASC_ISSUER_ID"],
+        key_filepath: ENV["ASC_KEY_FILEPATH"],
+        in_house: false
+      )
+    # Option 3: Fall back to Apple ID authentication if API key doesn't work
+    elsif ENV["FASTLANE_USER"] && ENV["FASTLANE_PASSWORD"]
+      UI.important("Using Apple ID authentication instead of App Store Connect API key")
+      # No explicit action needed, fastlane will use these environment variables
+    # Option 4: Try with the regular key_content as a last resort
+    else
+      UI.important("Attempting with standard key_content - if this fails, try base64 encoding your key")
+      app_store_connect_api_key(
+        key_id: ENV["ASC_KEY_ID"],
+        issuer_id: ENV["ASC_ISSUER_ID"],
+        key_content: ENV["ASC_KEY_CONTENT"],
+        in_house: false
+      )
     end
     
-    # Configure Xcode project for code signing
-    begin
-      if ENV["APPLE_TEAM_ID"].nil?
-        UI.error("No team ID provided! This will likely cause signing to fail.")
-      else
-        # Set up automatic signing as a safer default
-        UI.message("Setting up automatic code signing with team ID: #{ENV["APPLE_TEAM_ID"]}")
-        update_code_signing_settings(
-          use_automatic_signing: true,
-          path: "ios/exporeactnativepaper.xcodeproj",
-          team_id: ENV["APPLE_TEAM_ID"],
-          targets: ["exporeactnativepaper"]
-        )
-      end
-    rescue => e
-      UI.error("Error setting code signing: #{e.message}")
-    end
+    # Configure Xcode project for automatic signing
+    update_code_signing_settings(
+      use_automatic_signing: true,
+      path: "ios/ExpoReactNativePaper.xcodeproj",
+      team_id: ENV["APPLE_TEAM_ID"],
+      targets: ["ExpoReactNativePaper"], # Update with your main target name
+      build_configurations: ["Release", "Debug"]
+    )
   end
 
   desc "Build iOS app for testing (for CI)"
@@ -246,46 +226,65 @@ platform :android do
     )
   end
   
-  desc "Deploy to production (for CircleCI)"
+  desc "Build and deploy to Google Play Store"
   lane :deploy_to_production do
+    # Print debug info for Android build
+    UI.important("Starting Android production build")
+    UI.important("Keystore path: #{ENV['ANDROID_KEYSTORE_PATH']}")
+    UI.important("Key alias: #{ENV['ANDROID_KEY_ALIAS'] || 'not set'}")
+    
     # Increment version code
     increment_version_code(
       gradle_file_path: "android/app/build.gradle"
     )
     
-    # Performance optimization - disable unused ABIs
-    gradle_properties = {
-      "android.abi.filter" => "armeabi-v7a,arm64-v8a",
-      "android.enableR8.fullMode" => "true",
-      "hermesEnabled" => "true"
-    }
-    
-    # Print debug info
-    UI.message("ANDROID_KEYSTORE_PATH: #{ENV['ANDROID_KEYSTORE_PATH']}")
-    UI.message("ANDROID_KEYSTORE_PASSWORD is set: #{!ENV['ANDROID_KEYSTORE_PASSWORD'].nil?}")
-    UI.message("ANDROID_KEY_ALIAS is set: #{!ENV['ANDROID_KEY_ALIAS'].nil?}")
-    UI.message("ANDROID_KEY_PASSWORD is set: #{!ENV['ANDROID_KEY_PASSWORD'].nil?}")
-    
-    # Build Android App Bundle with performance optimizations
+    # Build the Android app
     gradle(
-      task: "bundle",
-      build_type: "Release",
+      task: "clean assembleRelease",
       project_dir: "android/",
       properties: {
-        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"] || ENV["ANDROID_KEYSTORE_FILE"],
+        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"],
         "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
         "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
         "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"]
-      }.merge(gradle_properties)
+      }
     )
     
-    # Upload to Play Store
+    # Upload to Google Play
     upload_to_play_store(
-      track: 'production', # Deploy to production track
+      track: "production",
+      release_status: "completed",
       skip_upload_metadata: true,
       skip_upload_images: true,
       skip_upload_screenshots: true,
-      json_key: ENV["GOOGLE_PLAY_JSON_KEY"]
+      json_key_data: ENV["GOOGLE_PLAY_JSON_KEY"]
+    )
+  end
+  
+  desc "Build and deploy to Firebase App Distribution"
+  lane :deploy_to_firebase do
+    # Print debug info
+    UI.important("Starting Android Firebase build")
+    UI.important("Keystore path: #{ENV['ANDROID_KEYSTORE_PATH']}")
+    
+    # Build the Android app
+    gradle(
+      task: "clean assembleRelease",
+      project_dir: "android/",
+      properties: {
+        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"],
+        "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"]
+      }
+    )
+    
+    # Upload to Firebase
+    firebase_app_distribution(
+      app: ENV["FIREBASE_APP_ID_ANDROID"],
+      groups: "testers",
+      release_notes: "New test build",
+      firebase_cli_token: ENV["FIREBASE_CLI_TOKEN"]
     )
   end
 
