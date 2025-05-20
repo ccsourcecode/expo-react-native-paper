@@ -2,7 +2,7 @@ version: 2.1
 jobs:
   react-native-test:
     docker:
-      - image: cimg/node:20.19.2
+      - image: cimg/node:20.20.0
 
     steps:
       - checkout
@@ -29,7 +29,7 @@ jobs:
 
   macos-build-and-deploy:
     macos:
-      xcode: 13.4.1
+      xcode: 15.4.0
     environment:
       FL_OUTPUT_DIR: output
 
@@ -87,6 +87,7 @@ jobs:
     working_directory: ~/example-app
     docker:
       - image: cimg/android:2025.04.1-node
+
     steps:
       - checkout:
           path: ~/example-app
