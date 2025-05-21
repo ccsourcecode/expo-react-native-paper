@@ -112,14 +112,12 @@ jobs:
           # Create Matchfile if it doesn't exist
           if [ ! -f fastlane/Matchfile ]; then
             mkdir -p fastlane
-            cat > fastlane/Matchfile << EOF
-            git_url("${{ secrets.MATCH_REPO_SSH }}")
-            storage_mode("git")
-            type("appstore")
-            app_identifier(["com.mymail.exporeactnativepaper"])
-            username("${{ secrets.APPLE_ID }}")
-            team_id("${{ secrets.ITUNES_TEAM_ID }}")
-            EOF
+            echo 'git_url("'"${{ secrets.MATCH_REPO_SSH }}"'")' > fastlane/Matchfile
+            echo 'storage_mode("git")' >> fastlane/Matchfile
+            echo 'type("appstore")' >> fastlane/Matchfile
+            echo 'app_identifier(["com.mymail.exporeactnativepaper"])' >> fastlane/Matchfile
+            echo 'username("'"${{ secrets.APPLE_ID }}"'")' >> fastlane/Matchfile
+            echo 'team_id("'"${{ secrets.ITUNES_TEAM_ID }}"'")' >> fastlane/Matchfile
           fi
       
       # Configure app with BASE_URL
