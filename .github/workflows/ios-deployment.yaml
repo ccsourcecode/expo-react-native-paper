@@ -41,6 +41,17 @@ jobs:
       # Checks out the repository
       - uses: actions/checkout@master
 
+      # Check if SSH key secret exists and has content
+      - name: Check if SSH key secret exists
+        run: |
+          if [ -z "${{ secrets.MATCH_REPO_KEY }}" ]; then
+            echo "ERROR: The MATCH_REPO_KEY secret is empty or not set"
+            exit 1
+          else
+            echo "✅ MATCH_REPO_KEY secret exists and has content"
+            echo "Length of MATCH_REPO_KEY: $(echo '${{ secrets.MATCH_REPO_KEY }}' | wc -c) characters"
+          fi
+
       # Sets up SSH agent with the Match repo private key
       - uses: webfactory/ssh-agent@v0.5.0
         with:
