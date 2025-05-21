@@ -32,6 +32,10 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       BASE_URL: ${{ vars.BASE_URL }}
       CI: true
+      # Git credentials for match
+      GIT_USERNAME: ${{ github.actor }}
+      # Automatically provided by GitHub Actions.
+      GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # App configuration from .env file
       WORKSPACE: exporeactnativepaper.xcodeproj/project.xcworkspace
       PROJECT: exporeactnativepaper.xcodeproj
@@ -66,6 +70,12 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.MATCH_REPO_KEY }}
         continue-on-error: false
+
+      # Test SSH connection to GitHub
+      - name: Test SSH connection
+        run: |
+          ssh -T git@github.com || true
+          ssh -vT git@github.com || true
 
       # Sets up the Ruby version
       - uses: ruby/setup-ruby@v1
@@ -133,12 +143,19 @@ jobs:
           # Create Matchfile if it doesn't exist
           if [ ! -f fastlane/Matchfile ]; then
             mkdir -p fastlane
-            echo 'git_url("'"${{ secrets.MATCH_REPO_SSH }}"'")' > fastlane/Matchfile
+            # Extract repo name from SSH URL
+            REPO_NAME=$(echo "${{ secrets.MATCH_REPO_SSH }}" | sed -E 's/.*:(.+)\.git/\1/')
+            HTTPS_URL="https://github.com/${REPO_NAME}.git"
+            echo "Using HTTPS URL for match: ${HTTPS_URL}"
+            
+            echo 'git_url("'${HTTPS_URL}'")' > fastlane/Matchfile
             echo 'storage_mode("git")' >> fastlane/Matchfile
+            echo 'git_basic_authorization(ENV["GIT_BASIC_AUTHORIZATION"])' >> fastlane/Matchfile
             echo 'type("appstore")' >> fastlane/Matchfile
             echo 'app_identifier(["com.mymail.exporeactnativepaper"])' >> fastlane/Matchfile
             echo 'username("'"${{ secrets.APPLE_ID }}"'")' >> fastlane/Matchfile
             echo 'team_id("'"${{ secrets.ITUNES_TEAM_ID }}"'")' >> fastlane/Matchfile
+            echo 'readonly(true)' >> fastlane/Matchfile
           fi
       
       # Configure app with BASE_URL
@@ -149,8 +166,14 @@ jobs:
           # If needed, you can also update Info.plist with this URL
           # /usr/libexec/PlistBuddy -c "Set :APIBaseURL ${{ vars.BASE_URL }}" ios/exporeactnativepaper/Info.plist
 
-      # Builds and deploys the iOS app using Fastlane and the "ios release" lane.
+      # Configure bundle for match password
+      - name: Configure bundler
+        run: |
+          cd ios
+          bundle config set --local MATCH_PASSWORD "${{ secrets.MATCH_PASSWORD }}"
+
+      # Builds and deploys the iOS app using Fastlane
       - name: Build and deploy
         run: |
           cd ios
-          bundle exec fastlane build_and_release
+          FASTLANE_HIDE_TIMESTAMP=0 FASTLANE_DISABLE_COLORS=0 FASTLANE_VERBOSE=1 bundle exec fastlane build_and_release --verbose
