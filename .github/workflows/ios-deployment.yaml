@@ -51,6 +51,15 @@ jobs:
         with:
           ruby-version: 2.7.4
       
+      # Cache node_modules
+      - name: Cache Node.js modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      
       # Configure Git for match
       - name: Configure git
         run: |
@@ -65,7 +74,7 @@ jobs:
           bundle install
 
       # Caches the Pods directory and restores it for future builds
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: Pods
           key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
