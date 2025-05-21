@@ -1,9 +1,21 @@
 name: android-deployment
 
 on:
- push:
+  push:
     branches:
       - 'master'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'internal'
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
 
 jobs:
   build:
@@ -43,4 +55,4 @@ jobs:
           npm install
           export NODE_OPTIONS=--openssl-legacy-provider
           cd android
-          bundle exec fastlane android internal
+          bundle exec fastlane android build_and_release_internal

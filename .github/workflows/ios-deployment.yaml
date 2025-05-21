@@ -1,9 +1,20 @@
 name: ios-deployment
 
 on:
- push:
+  push:
     branches:
       - 'master'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
 
 jobs:
   build:
