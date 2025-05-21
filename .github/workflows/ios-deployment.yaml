@@ -43,6 +43,7 @@ jobs:
 
       # Check if SSH key secret exists and has content
       - name: Check if SSH key secret exists
+        environment: test
         run: |
           if [ -z "${{ secrets.MATCH_REPO_KEY }}" ]; then
             echo "ERROR: The MATCH_REPO_KEY secret is empty or not set"
