@@ -52,16 +52,18 @@ jobs:
             echo "✅ MATCH_REPO_KEY secret exists and has content"
             echo "Length of MATCH_REPO_KEY: $(echo '${{ secrets.MATCH_REPO_KEY }}' | wc -c) characters"
           fi
-
+          
       # Sets up SSH agent with the Match repo private key
-      - uses: webfactory/ssh-agent@v0.5.0
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.5.0
         with:
           ssh-private-key: ${{ secrets.MATCH_REPO_KEY }}
+        continue-on-error: false
 
       # Sets up the Ruby version
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 2.7.4
+          ruby-version: '3.1.4'
       
       # Cache node_modules
       - name: Cache Node.js modules

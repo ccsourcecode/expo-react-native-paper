@@ -20,6 +20,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: ${{ 'test' || github.event.inputs.environment }}
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       BASE_URL : ${{ vars.BASE_URL }}
@@ -32,7 +33,7 @@ jobs:
       # sets up the Ruby environment
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 2.7.4
+          ruby-version: '3.1.4'
 
       # Cache node_modules
       - name: Cache Node.js modules
