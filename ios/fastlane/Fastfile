@@ -1,4 +1,5 @@
 ######## IOS CONFIGURATIONS
+require 'securerandom'
 
 # If you want to make the build automatically available to external groups,
 # add the name of the group to the array below, after "App Store Connect Users"
@@ -64,12 +65,37 @@ platform :ios do
     # Matches the certificates and profiles
     # The error is occurring because match is trying to create a development or ad-hoc provisioning profile which requires device registration, but no devices are registered.
     # By specifying type: "appstore", we're telling fastlane to use an App Store distribution profile which doesn't require registered devices.
-    match(
-      api_key: api_key,
-      type: "appstore",
-      app_identifier: app_identifier,
-      verbose: true,
-    )
+    if ENV["CI"]
+      # Create keychain for CI environment
+      keychain_name = "fastlane_tmp_keychain"
+      keychain_password = SecureRandom.uuid
+      
+      # Create temporary keychain for the CI environment
+      sh("security create-keychain -p #{keychain_password} #{keychain_name}")
+      sh("security default-keychain -s #{keychain_name}")
+      sh("security unlock-keychain -p #{keychain_password} #{keychain_name}")
+      sh("security set-keychain-settings -t 3600 -l #{keychain_name}")
+      
+      # Use the created keychain
+      match(
+        api_key: api_key,
+        type: "appstore",
+        readonly: true,
+        app_identifier: app_identifier,
+        verbose: true,
+        keychain_name: keychain_name,
+        keychain_password: keychain_password
+      )
+    else
+      # For local environment, use the login keychain
+      match(
+        api_key: api_key,
+        type: "appstore",
+        readonly: true,
+        app_identifier: app_identifier,
+        verbose: true
+      )
+    end
 
     # Builds the app
     gym(
