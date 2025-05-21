@@ -182,6 +182,22 @@ jobs:
         run: |
           cd ios
           bundle config set --local MATCH_PASSWORD "${{ secrets.MATCH_PASSWORD }}"
+          
+      # Setup code signing environment variables
+      - name: Setup code signing environment
+        run: |
+          # Create build directory
+          mkdir -p ios/build ios/fastlane/logs
+          
+          # Set up code signing environment variables
+          echo "CODE_SIGN_IDENTITY=iPhone Distribution" >> $GITHUB_ENV
+          echo "PROVISIONING_PROFILE_SPECIFIER=match AppStore com.mymail.exporeactnativepaper" >> $GITHUB_ENV
+          echo "FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT=120" >> $GITHUB_ENV
+          echo "FASTLANE_XCODEBUILD_SETTINGS_RETRIES=10" >> $GITHUB_ENV
+          
+          # Print certificate info to verify setup
+          security find-identity -v -p codesigning || echo "No codesigning identities found"
+
       # Builds and deploys the iOS app using Fastlane
       - name: Build and deploy
         run: |

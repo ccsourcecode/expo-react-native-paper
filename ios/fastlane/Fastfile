@@ -99,31 +99,41 @@ platform :ios do
 
     # Builds the app
     begin
+      # Create logs directory
+      sh("mkdir -p fastlane/logs")
+      
+      UI.important("Starting build with project: #{project}, scheme: #{scheme}")
+      
+      # Use gym with detailed logging
       gym(
         project: project,
         scheme: scheme,
         configuration: configuration,
         export_options: {
           method: export_method,
-          compile_bitcode: false
+          provisioningProfiles: {
+            "com.mymail.exporeactnativepaper" => "match AppStore com.mymail.exporeactnativepaper"
+          }
         },
-        xcargs: "CURRENT_PROJECT_VERSION=#{build_number}",
+        xcargs: "CURRENT_PROJECT_VERSION=#{build_number} CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='match AppStore com.mymail.exporeactnativepaper' CODE_SIGN_IDENTITY='iPhone Distribution'",
         clean: true,
         output_directory: "build",
-        include_symbols: true,
-        include_bitcode: false,
-        export_xcargs: "-allowProvisioningUpdates",
-        skip_codesigning: false,
         buildlog_path: "fastlane/logs",
-        xcodebuild_formatter: "",
-        disable_xcpretty: true
+        silent: false,
+        export_method: export_method,
+        skip_profile_detection: false,
+        include_bitcode: false
       )
     rescue => ex
       UI.error("Build failed with error: #{ex}")
-      UI.error("Error details: #{ex.backtrace.join("\n")}")
       
-      # Continue anyway to see if we can get more information
-      sh("find ~/Library/Developer/Xcode/DerivedData -name '*.log' -type f -exec grep -l 'error' {} \\; | xargs cat")
+      # Display the error log if possible
+      error_log = Dir.glob("fastlane/logs/**/*.log").first
+      if error_log && File.exist?(error_log)
+        UI.error("Last 100 lines of error log (#{error_log}):")
+        sh("tail -n 100 '#{error_log}'")
+      end
+      
       raise ex
     end
 
