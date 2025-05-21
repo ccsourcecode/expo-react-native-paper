@@ -76,7 +76,6 @@ jobs:
         run: |
           ssh -T git@github.com || true
           ssh -vT git@github.com || true
-
       # Sets up the Ruby version
       - uses: ruby/setup-ruby@v1
         with:
@@ -97,13 +96,11 @@ jobs:
           git config --global user.email "ci@example.com"
           git config --global user.name "GitHub CI"
           ssh-keyscan github.com >> ~/.ssh/known_hosts
-
       # Installs dependencies using bundle install
       - name: Install Dependencies
         run: |
           cd ios
           bundle install
-
       # Caches the Pods directory and restores it for future builds
       - uses: actions/cache@v3
         with:
@@ -111,14 +108,12 @@ jobs:
           key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-pods-
-
       # Installs dependencies using npm and pod install
       - name: Setup dependencies
         run: |
           npm install
           cd ios
           pod install
-
       # Create environment files for fastlane
       - name: Setup environment
         run: |
@@ -148,21 +143,14 @@ jobs:
             HTTPS_URL="https://github.com/${REPO_NAME}.git"
             echo "Using HTTPS URL for match: ${HTTPS_URL}"
             
-            # Create a simple Matchfile optimized for CI
-            cat > fastlane/Matchfile << EOF
-git_url("${HTTPS_URL}")
-storage_mode("git")
-type("appstore")
-app_identifier(["com.mymail.exporeactnativepaper"])
-username("${{ secrets.APPLE_ID }}")
-team_id("${{ secrets.ITUNES_TEAM_ID }}")
-readonly(true)
-verbose(true)
-git_basic_authorization(ENV["GIT_BASIC_AUTHORIZATION"])
-keychain_name(ENV["MATCH_KEYCHAIN_NAME"])
-keychain_password(ENV["MATCH_KEYCHAIN_PASSWORD"])
-ENV["MATCH_PASSWORD"] = "${{ secrets.MATCH_PASSWORD }}"
-EOF
+            echo 'git_url("'${HTTPS_URL}'")' > fastlane/Matchfile
+            echo 'storage_mode("git")' >> fastlane/Matchfile
+            echo 'git_basic_authorization(ENV["GIT_BASIC_AUTHORIZATION"])' >> fastlane/Matchfile
+            echo 'type("appstore")' >> fastlane/Matchfile
+            echo 'app_identifier(["com.mymail.exporeactnativepaper"])' >> fastlane/Matchfile
+            echo 'username("'"${{ secrets.APPLE_ID }}"'")' >> fastlane/Matchfile
+            echo 'team_id("'"${{ secrets.ITUNES_TEAM_ID }}"'")' >> fastlane/Matchfile
+            echo 'readonly(true)' >> fastlane/Matchfile
           fi
       
       # Configure app with BASE_URL
@@ -172,31 +160,11 @@ EOF
           echo "API_URL=${{ vars.BASE_URL }}" > .env
           # If needed, you can also update Info.plist with this URL
           # /usr/libexec/PlistBuddy -c "Set :APIBaseURL ${{ vars.BASE_URL }}" ios/exporeactnativepaper/Info.plist
-
       # Configure bundle for match password
       - name: Configure bundler
         run: |
           cd ios
           bundle config set --local MATCH_PASSWORD "${{ secrets.MATCH_PASSWORD }}"
-          
-      # Setup keychain for code signing
-      - name: Setup keychain for code signing
-        run: |
-          # Create a temporary keychain for code signing
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
-          KEYCHAIN_PASSWORD="temporary_password"
-          
-          # Create keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security default-keychain -s "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -t 3600 -l "$KEYCHAIN_PATH"
-          
-          # Set match environment variables
-          echo "MATCH_KEYCHAIN_NAME=$KEYCHAIN_PATH" >> $GITHUB_ENV
-          echo "MATCH_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
-          echo "MATCH_READONLY=true" >> $GITHUB_ENV
-
       # Builds and deploys the iOS app using Fastlane
       - name: Build and deploy
         run: |
