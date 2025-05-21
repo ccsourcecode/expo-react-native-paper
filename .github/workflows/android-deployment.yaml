@@ -55,4 +55,18 @@ jobs:
           npm install
           export NODE_OPTIONS=--openssl-legacy-provider
           cd android
-          bundle exec fastlane android build_and_release_internal
+          
+          # Use the selected environment from manual trigger or default to internal
+          TRACK="${{ github.event.inputs.environment || 'internal' }}"
+          
+          if [ "$TRACK" = "internal" ]; then
+            bundle exec fastlane android build_and_release_internal
+          elif [ "$TRACK" = "alpha" ]; then
+            bundle exec fastlane android build_and_release_alpha
+          elif [ "$TRACK" = "beta" ]; then
+            bundle exec fastlane android build_and_release_beta
+          elif [ "$TRACK" = "production" ]; then
+            bundle exec fastlane android build_and_release_production
+          else
+            bundle exec fastlane android build_and_release_internal
+          fi
