@@ -1,0 +1,103 @@
+name: ios-deployment
+
+on:
+ push:
+    branches:
+      - 'master'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    env:
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      P8_AUTH_KEY_BASE64: ${{ secrets.P8_AUTH_KEY_BASE64 }}
+      APPSTORE_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_TEAM_KEY_ID }}
+      APPSTORE_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_TEAM_ISSUER_ID }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      ITUNES_TEAM_ID: ${{ secrets.ITUNES_TEAM_ID }}
+      APPSTORE_TEAM_ID: ${{ secrets.APPSTORE_TEAM_ID }}
+      MATCH_REPO_SSH: ${{ secrets.MATCH_REPO_SSH }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      CI: true
+
+    steps:
+      # Sets up the Xcode version
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.4.0'
+
+      # Checks out the repository
+      - uses: actions/checkout@master
+
+      # Sets up SSH agent with the Match repo private key
+      - uses: webfactory/ssh-agent@v0.5.0
+        with:
+          ssh-private-key: ${{ secrets.MATCH_REPO_KEY }}
+
+      # Sets up the Ruby version
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 2.7.4
+      
+      # Configure Git for match
+      - name: Configure git
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "GitHub CI"
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      # Installs dependencies using bundle install
+      - name: Install Dependencies
+        run: |
+          cd ios
+          bundle install
+
+      # Caches the Pods directory and restores it for future builds
+      - uses: actions/cache@v2
+        with:
+          path: Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      # Installs dependencies using npm and pod install
+      - name: Setup dependencies
+        run: |
+          npm install
+          cd ios
+          pod install
+
+      # Create environment files for fastlane
+      - name: Setup environment
+        run: |
+          cd ios
+          # Decode the base64-encoded p8 key and write it to the file
+          echo "${{ secrets.P8_AUTH_KEY_BASE64 }}" | base64 --decode > secretKey.p8
+          
+          # Create Matchfile if it doesn't exist
+          if [ ! -f fastlane/Matchfile ]; then
+            mkdir -p fastlane
+            cat > fastlane/Matchfile << EOF
+            git_url("${{ secrets.MATCH_REPO_SSH }}")
+            storage_mode("git")
+            type("appstore")
+            app_identifier(["com.mymail.exporeactnativepaper"])
+            username("${{ secrets.APPLE_ID }}")
+            team_id("${{ secrets.ITUNES_TEAM_ID }}")
+            EOF
+          fi
+      
+      # Configure app with BASE_URL
+      - name: Configure app environment
+        run: |
+          # For Expo/React Native, create a .env file with the BASE_URL
+          echo "API_URL=${{ vars.BASE_URL }}" > .env
+          # If needed, you can also update Info.plist with this URL
+          # /usr/libexec/PlistBuddy -c "Set :APIBaseURL ${{ vars.BASE_URL }}" ios/exporeactnativepaper/Info.plist
+
+      # Builds and deploys the iOS app using Fastlane and the "ios release" lane.
+      - name: Build and deploy
+        run: |
+          cd ios
+          bundle exec fastlane build_and_release

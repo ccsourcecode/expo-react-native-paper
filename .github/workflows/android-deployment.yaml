@@ -1,0 +1,46 @@
+name: android-deployment
+
+on:
+ push:
+    branches:
+      - 'master'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      BASE_URL : ${{ vars.BASE_URL }}
+    continue-on-error: false
+
+    steps:
+      # checks out the code from the repository
+      - uses: actions/checkout@master
+
+      # sets up the Ruby environment
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 2.7.4
+
+      # installs the dependencies
+      - name: Install Dependencies
+        run: |
+          cd android
+          bundle install
+
+      # sets up the dependencies
+      - name: Setup dependencies
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}' > android/google-service-account-key.json
+          echo "${{ secrets.ANDROID_SIGNING_KEY }}" > my-upload-key.keystore.asc
+          gpg -d --passphrase "${{ secrets.ANDROID_SIGNING_KEY_PASSPHRASE }}" --batch my-upload-key.keystore.asc > android/app/my-upload-key.keystore
+
+      # builds and deploys the app
+      # installing Node.js dependencies, setting an environment variable to use the legacy OpenSSL provider
+      # execute the fastlane command to deploy the app to the internal track on Google Play Store
+      - name: Build and deploy
+        run: |
+          npm install
+          export NODE_OPTIONS=--openssl-legacy-provider
+          cd android
+          bundle exec fastlane android internal

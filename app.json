@@ -17,6 +17,7 @@
       "**/*"
     ],
     "ios": {
+      "buildNumber": "1.0.0",
       "supportsTablet": true,
       "infoPlist": {
         "ExpoLocalization_supportsRTL": true

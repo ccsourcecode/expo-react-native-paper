@@ -222,7 +222,7 @@ PLATFORMS
 
 DEPENDENCIES
   dotenv
-  fastlane (~> 2.227)
+  fastlane
 
 BUNDLED WITH
    2.6.9

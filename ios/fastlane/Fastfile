@@ -1,4 +1,5 @@
 ######## IOS CONFIGURATIONS
+
 # If you want to make the build automatically available to external groups,
 # add the name of the group to the array below, after "App Store Connect Users"
 groups = ENV["External_Tests_group_name"]
@@ -10,9 +11,10 @@ slack_weebhook_url = ENV["SLACK_WEBHOOK_URL"]
 configuration = ENV["CONFIGURATION"]
 scheme = ENV["SCHEME"]
 export_method = ENV["EXPORT_METHOD"]
-key_id = ENV["APPSTORE_TEAM_KEY_ID"] # The key id of the p8 file
-issuer_id = ENV["APPSTORE_TEAM_ISSUER_ID"] # issuer id on appstore connect
-key_filepath = ENV["KEY_FILEPATH"] # The path to p8 file generated on appstore connect
+key_id = ENV["APP_STORE_CONNECT_API_KEY_TEAM_KEY_ID"] # The key id of the p8 file
+issuer_id = ENV["APP_STORE_CONNECT_API_KEY_TEAM_ISSUER_ID"] # issuer id on appstore connect
+key_filepath = ENV["APP_STORE_CONNECT_API_KEY_KEY_FILEPATH"] # The path to p8 file generated on appstore connect
+
 ######## END IOS CONFIGURATIONS
 
 
@@ -25,51 +27,80 @@ platform :ios do
   lane :build_and_release do
     setup_ci
     app_identifier = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+    
+    # Set key filepath based on CI or local environment
+    key_filepath_to_use = ENV["CI"] ? "secretKey.p8" : key_filepath
+    
+    # Retrieves the API key from App Store Connect
     api_key = app_store_connect_api_key(
       key_id: key_id,
       issuer_id: issuer_id,
-      key_filepath: key_filepath,
-      in_house: true
+      key_filepath: key_filepath_to_use
     )
+    
+    # Debug - Print API key details
+    puts "API Key Details:"
+    puts "Key ID: #{key_id}"
+    puts "Issuer ID: #{issuer_id}"
+    puts "Key Filepath: #{key_filepath_to_use}"
+    puts "API Key Object: #{api_key.inspect}"
 
+    # Retrieves the latest build number from TestFlight
     latest_build_number = latest_testflight_build_number(
         api_key: api_key,
         app_identifier: app_identifier
     )
-    increment_build_number(
-        build_number: (latest_build_number + 1),
+    # Sets the build number explicitly instead of incrementing
+    build_number = latest_build_number + 1
+    puts "Setting build number to: #{build_number}"
+    
+    # Skip automatic versioning which requires Apple Generic Versioning
+    # increment_build_number(
+    #     build_number: (latest_build_number + 1),
+    # )
+
+    # Clears the derived data
+    clear_derived_data
+    # Matches the certificates and profiles
+    # The error is occurring because match is trying to create a development or ad-hoc provisioning profile which requires device registration, but no devices are registered.
+    # By specifying type: "appstore", we're telling fastlane to use an App Store distribution profile which doesn't require registered devices.
+    match(
+      api_key: api_key,
+      type: "appstore",
+      app_identifier: app_identifier
     )
 
-
-    clear_derived_data
-    match(api_key: api_key)
-    
+    # Builds the app
     gym(
+      project: project,
       scheme: scheme,
       configuration: configuration,
       export_options: {
         method: export_method,
         compile_bitcode: true
-      }
+      },
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}"
     )
 
+    # Uploads the build to TestFlight
     pilot(
-      changelog: "Build #{latest_build_number + 1}",
+      changelog: "Build #{build_number}",
       api_key: api_key,
       app_identifier: app_identifier,
       distribute_external: true,
       groups: groups,
     )
 
+    # Sends a message to Slack channel #general to notify that the build is available for open testing
     slack(
       slack_url: slack_weebhook_url,
-      message: "Build #{latest_build_number + 1} is available on TestFlight",
-      channel: "#your-channel",
+      message: "Build #{build_number} is available on TestFlight",
+      channel: "#general",
       default_payloads: [],
       success: true,
       payload: {
         'Build Date' => Time.now,
-        'Build Number' => latest_build_number + 1
+        'Build Number' => build_number
       }
     )
 

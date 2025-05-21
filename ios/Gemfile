@@ -3,5 +3,5 @@
 source "https://rubygems.org"
 
 # gem "rails"
-
+gem "dotenv"
 gem "fastlane", "~> 2.227"

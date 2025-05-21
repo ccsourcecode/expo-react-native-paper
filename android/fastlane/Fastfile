@@ -1,44 +1,59 @@
-# This file contains the fastlane.tools configuration
-# You can find the documentation at https://docs.fastlane.tools
-#
-# For a list of all available actions, check out
-#
-#     https://docs.fastlane.tools/actions
-#
-# For a list of all available plugins, check out
-#
-#     https://docs.fastlane.tools/plugins/available-plugins
-#
+######## Android CONFIGURATIONS
 
-# Uncomment the line if you want fastlane to automatically update itself
-# update_fastlane
+package_name = "com.mymail.exporeactnativepaper"
+json_key_file = "./fastlane/google-service-account-key.json"
+gradle_file_path = "./app/build.gradle"
+slack_weebhook_url = ENV["SLACK_WEBHOOK_URL"]
+######## END Android CONFIGURATIONS
 
 default_platform(:android)
 
 platform :android do
-  desc "Upload to Closed Test Alpha Track"
-    lane :upload_to_closed_test_alpha do
-        gradle(task: 'clean')
-        previous_build_number = google_play_track_version_codes(track: "alpha")[0]
-        current_build_number = previous_build_number + 1
 
-        gradle(
-          task: 'bundle',
-          build_type: 'Release',
-          print_command: false,
-          properties: {
-            "android.injected.signing.store.file" => ENV["ANDROID_SIGNING_KEY_STORE"],
-            "android.injected.signing.store.password" => ENV["ANDROID_SIGNING_KEY_STORE_PASSWORD"],
-            "android.injected.signing.key.alias" => ENV["ANDROID_SIGNING_KEY_ALIAS"],
-            "android.injected.signing.key.password" => ENV["ANDROID_SIGNING_KEY_PASSWORD"],
-            "android.injected.version.code" => current_build_number
-          }
-        )
-        upload_to_play_store(
-          track: "alpha",
-          skip_upload_apk: true,
-          aab:"/app/build/outputs/bundle/release/app-prod-release.aab")
-        end
+  desc "Build and deploy to internal track"
+  lane :build_and_release_internal do
+
+    # Retrieves the previous build number from the beta track on Google Play Store
+    previous_build_number = google_play_track_version_codes(
+      package_name: package_name,
+      json_key: json_key_file,
+      track: "beta",
+    )[0]
+
+    # Increments the build number by 1
+    current_build_number = previous_build_number + 1
+
+    # Increments the version code in the build.gradle file
+    increment_version_code(
+      gradle_file_path: gradle_file_path,
+      version_code: current_build_number
+    )
+       
+    # Clean and builds the app using gradle
+    gradle(
+      task: "clean bundleRelease",
+      gradle_path: "./gradlew"
+    )
+
+    # Uploads the app to the beta track on Google Play Store
+    upload_to_play_store(
+      track: "beta",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+    #   skip_upload_apk: true,
+    ) 
+
+    # Sends a message to Slack channel #general to notify that the build is available for open testing
+    slack(
+      slack_url: slack_weebhook_url,
+      message: "Android : Build #{previous_build_number + 1} is available for Open Testing",
+      channel: "#general",
+      default_payloads: [],
+      success: true,
+      payload: {
+        'Build Date' => Time.now,
+        'Build Number' => previous_build_number + 1
+      }
+    )
+  end
 end
-
 
