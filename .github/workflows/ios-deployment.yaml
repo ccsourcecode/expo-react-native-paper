@@ -19,6 +19,7 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+    environment: ${{ 'test' || github.event.inputs.environment }}
     env:
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
       P8_AUTH_KEY_BASE64: ${{ secrets.P8_AUTH_KEY_BASE64 }}
@@ -43,7 +44,6 @@ jobs:
 
       # Check if SSH key secret exists and has content
       - name: Check if SSH key secret exists
-        environment: test
         run: |
           if [ -z "${{ secrets.MATCH_REPO_KEY }}" ]; then
             echo "ERROR: The MATCH_REPO_KEY secret is empty or not set"
