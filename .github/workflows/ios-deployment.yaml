@@ -23,8 +23,8 @@ jobs:
     env:
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
       P8_AUTH_KEY_BASE64: ${{ secrets.P8_AUTH_KEY_BASE64 }}
-      APPSTORE_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_TEAM_KEY_ID }}
-      APPSTORE_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_TEAM_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_TEAM_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_TEAM_KEY_ID }}
+      APP_STORE_CONNECT_API_KEY_TEAM_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_TEAM_ISSUER_ID }}
       APPLE_ID: ${{ secrets.APPLE_ID }}
       ITUNES_TEAM_ID: ${{ secrets.ITUNES_TEAM_ID }}
       APPSTORE_TEAM_ID: ${{ secrets.APPSTORE_TEAM_ID }}
@@ -32,6 +32,13 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       BASE_URL: ${{ vars.BASE_URL }}
       CI: true
+      # App configuration from .env file
+      WORKSPACE: exporeactnativepaper.xcodeproj/project.xcworkspace
+      PROJECT: exporeactnativepaper.xcodeproj
+      CONFIGURATION: Release
+      SCHEME: exporeactnativepaper
+      EXPORT_METHOD: app-store
+      External_Tests_group_name: ExpoReactNativePaper-Tests
 
     steps:
       # Sets up the Xcode version
@@ -108,6 +115,20 @@ jobs:
           cd ios
           # Decode the base64-encoded p8 key and write it to the file
           echo "${{ secrets.P8_AUTH_KEY_BASE64 }}" | base64 --decode > secretKey.p8
+          
+          # Set the key filepath environment variable
+          echo "APP_STORE_CONNECT_API_KEY_KEY_FILEPATH=secretKey.p8" >> $GITHUB_ENV
+          
+          # Debug - Print environment variables (without revealing secrets)
+          echo "Environment Variables Available (redacted):"
+          echo "APP_STORE_CONNECT_API_KEY_TEAM_KEY_ID is set: $(if [ -n "$APP_STORE_CONNECT_API_KEY_TEAM_KEY_ID" ]; then echo "yes"; else echo "no"; fi)"
+          echo "APP_STORE_CONNECT_API_KEY_TEAM_ISSUER_ID is set: $(if [ -n "$APP_STORE_CONNECT_API_KEY_TEAM_ISSUER_ID" ]; then echo "yes"; else echo "no"; fi)"
+          echo "APP_STORE_CONNECT_API_KEY_KEY_FILEPATH is set: $(if [ -n "$APP_STORE_CONNECT_API_KEY_KEY_FILEPATH" ]; then echo "yes"; else echo "no"; fi)"
+          echo "WORKSPACE is set: $(if [ -n "$WORKSPACE" ]; then echo "yes"; else echo "no"; fi)"
+          echo "PROJECT is set: $(if [ -n "$PROJECT" ]; then echo "yes"; else echo "no"; fi)"
+          echo "CONFIGURATION is set: $(if [ -n "$CONFIGURATION" ]; then echo "yes"; else echo "no"; fi)"
+          echo "SCHEME is set: $(if [ -n "$SCHEME" ]; then echo "yes"; else echo "no"; fi)"
+          echo "EXPORT_METHOD is set: $(if [ -n "$EXPORT_METHOD" ]; then echo "yes"; else echo "no"; fi)"
           
           # Create Matchfile if it doesn't exist
           if [ ! -f fastlane/Matchfile ]; then
