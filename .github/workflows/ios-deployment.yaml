@@ -50,6 +50,16 @@ jobs:
         with:
           xcode-version: '15.4.0'
 
+      # Verify Xcode setup
+      - name: Verify Xcode setup
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          xcrun simctl list devices
+          sw_vers
+          echo "Available disk space:"
+          df -h
+
       # Checks out the repository
       - uses: actions/checkout@master
 
@@ -113,7 +123,14 @@ jobs:
         run: |
           npm install
           cd ios
-          pod install
+          # Remove existing Pods directory and Podfile.lock for clean install
+          rm -rf Pods Podfile.lock
+          # Update CocoaPods repo
+          pod repo update
+          # Install pods with verbose output
+          pod install --verbose
+          # List installed pods for debugging
+          pod list
       # Create environment files for fastlane
       - name: Setup environment
         run: |

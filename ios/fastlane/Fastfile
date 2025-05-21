@@ -66,7 +66,7 @@ platform :ios do
     # The error is occurring because match is trying to create a development or ad-hoc provisioning profile which requires device registration, but no devices are registered.
     # By specifying type: "appstore", we're telling fastlane to use an App Store distribution profile which doesn't require registered devices.
     if ENV["CI"]
-      # Create keychain for CI environment
+      # Create keychain for CI environment, creates a temporary keychain with a random password
       keychain_name = "fastlane_tmp_keychain"
       keychain_password = SecureRandom.uuid
       
@@ -98,16 +98,34 @@ platform :ios do
     end
 
     # Builds the app
-    gym(
-      project: project,
-      scheme: scheme,
-      configuration: configuration,
-      export_options: {
-        method: export_method,
-        compile_bitcode: true
-      },
-      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}"
-    )
+    begin
+      gym(
+        project: project,
+        scheme: scheme,
+        configuration: configuration,
+        export_options: {
+          method: export_method,
+          compile_bitcode: false
+        },
+        xcargs: "CURRENT_PROJECT_VERSION=#{build_number}",
+        clean: true,
+        output_directory: "build",
+        include_symbols: true,
+        include_bitcode: false,
+        export_xcargs: "-allowProvisioningUpdates",
+        skip_codesigning: false,
+        buildlog_path: "fastlane/logs",
+        xcodebuild_formatter: "",
+        disable_xcpretty: true
+      )
+    rescue => ex
+      UI.error("Build failed with error: #{ex}")
+      UI.error("Error details: #{ex.backtrace.join("\n")}")
+      
+      # Continue anyway to see if we can get more information
+      sh("find ~/Library/Developer/Xcode/DerivedData -name '*.log' -type f -exec grep -l 'error' {} \\; | xargs cat")
+      raise ex
+    end
 
     # Uploads the build to TestFlight
     pilot(
